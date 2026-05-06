@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PrepFlow — Weekly Meal Prep</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ============================================================
+       APP HEADER
+       ============================================================ -->
+  <header class="app-header">
+    <div class="header-inner">
+
+      <!-- PrepFlow brand: logo mark + wordmark + tagline -->
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="PrepFlow logo">
+          <defs>
+            <linearGradient id="pf-bg" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#26B48A"/>
+              <stop offset="100%" stop-color="#0F6E56"/>
+            </linearGradient>
+          </defs>
+          <!-- Rounded square background -->
+          <rect width="36" height="36" rx="8" fill="url(#pf-bg)"/>
+          <!-- P letterform: stem + bowl -->
+          <path d="M10.5 25.5 V8.5 h5 a6 6 0 0 1 0 12 h-5"
+                stroke="white" stroke-width="2.8"
+                stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          <!-- Flow arrow -->
+          <path d="M10.5 29 h10 m-3.5 -3 l3.5 3 l-3.5 3"
+                stroke="white" stroke-width="2.2"
+                stroke-linecap="round" stroke-linejoin="round" fill="none"
+                opacity="0.9"/>
+        </svg>
+        <div class="brand-text">
+          <h1 class="brand-name">Prep<span class="brand-flow">Flow</span></h1>
+          <p class="brand-tagline">Your weekly prep, perfectly planned.</p>
+        </div>
+      </div>
+
+      <!-- Right: week chip + dark mode toggle -->
+      <div class="header-actions">
+        <span class="week-chip" id="week-label">Week of May 5, 2026</span>
+        <button class="theme-toggle" id="theme-toggle" title="Toggle dark mode" aria-label="Toggle dark mode">
+          <svg class="icon-moon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M13 10.5A5.5 5.5 0 0 1 5.5 3a5.5 5.5 0 1 0 7.5 7.5z"/>
+          </svg>
+          <svg class="icon-sun" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <circle cx="8" cy="8" r="3"/>
+            <line x1="8" y1="1.5" x2="8" y2="3"/>
+            <line x1="8" y1="13" x2="8" y2="14.5"/>
+            <line x1="1.5" y1="8" x2="3" y2="8"/>
+            <line x1="13" y1="8" x2="14.5" y2="8"/>
+            <line x1="3.4" y1="3.4" x2="4.5" y2="4.5"/>
+            <line x1="11.5" y1="11.5" x2="12.6" y2="12.6"/>
+            <line x1="12.6" y1="3.4" x2="11.5" y2="4.5"/>
+            <line x1="4.5" y1="11.5" x2="3.4" y2="12.6"/>
+          </svg>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ============================================================
+       STAGE NAVIGATION
+       ============================================================ -->
+  <nav class="stage-nav" id="stage-nav">
+    <button class="nav-btn active" data-stage="0">1 · Plan</button>
+    <button class="nav-btn" data-stage="1">2 · Grocery List</button>
+    <button class="nav-btn" data-stage="2">3 · Shop</button>
+    <button class="nav-btn" data-stage="3">4 · Prep</button>
+    <button class="nav-btn" data-stage="4">5 · Store & Portion</button>
+  </nav>
+
+  <!-- Progress bar -->
+  <div class="progress-bar">
+    <div class="progress-fill" id="progress-fill"></div>
+  </div>
+
+  <!-- ============================================================
+       MAIN CONTENT AREA
+       ============================================================ -->
+  <main class="main-content">
+
+    <!-- ==========================================
+         STAGE 1: PLAN
+         ========================================== -->
+    <section class="stage active" id="stage-0">
+      <div class="stage-header">
+        <div class="stage-icon">📋</div>
+        <div>
+          <div class="stage-label">Stage 1</div>
+          <h2 class="stage-title">Plan the Week</h2>
+        </div>
+      </div>
+
+      <!-- Family macro targets -->
+      <div class="card">
+        <div class="card-header">
+          Family macro targets (daily)
+          <button class="calc-icon-btn" onclick="openMacroCalc()" title="Calculate macros from body measurements" aria-label="Open macro calculator">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="1" y="1" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.3"/>
+              <rect x="2.5" y="2.5" width="9" height="2.5" rx="0.5" fill="currentColor" opacity="0.35"/>
+              <circle cx="3.5" cy="8"  r="0.85" fill="currentColor"/>
+              <circle cx="7"   cy="8"  r="0.85" fill="currentColor"/>
+              <circle cx="10.5" cy="8" r="0.85" fill="currentColor"/>
+              <circle cx="3.5" cy="11"  r="0.85" fill="currentColor"/>
+              <circle cx="7"   cy="11"  r="0.85" fill="currentColor"/>
+              <circle cx="10.5" cy="11" r="0.85" fill="currentColor"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Member rows rendered by app.js renderMacroTargets() -->
+        <div id="macro-targets"></div>
+      </div><!-- /card -->
+
+      <!-- Recipe picker -->
+      <div class="card">
+        <div class="card-header">Pick recipes for the week</div>
+        <div class="recipe-grid" id="recipe-grid">
+          <!-- Recipe cards are injected by app.js from the RECIPES array -->
+        </div>
+      </div>
+
+      <!-- Weekly meal calendar -->
+      <div class="card">
+        <div class="card-header" id="meal-cal-header">Meal calendar</div>
+        <div class="meal-calendar" id="meal-calendar">
+          <!-- Day columns are injected by app.js -->
+        </div>
+      </div>
+    </section><!-- /stage-0 -->
+
+    <!-- ==========================================
+         STAGE 2: GROCERY LIST
+         ========================================== -->
+    <section class="stage" id="stage-1">
+      <div class="stage-header">
+        <div class="stage-icon">🛒</div>
+        <div>
+          <div class="stage-label">Stage 2</div>
+          <h2 class="stage-title">Build the Grocery List</h2>
+        </div>
+      </div>
+
+      <!-- Summary metric cards -->
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-label">Total Items</div>
+          <div class="metric-value" id="total-items">18</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Est. Cost</div>
+          <div class="metric-value">$124</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Checked</div>
+          <div class="metric-value" id="checked-count">0</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Remaining</div>
+          <div class="metric-value" id="remaining-count">18</div>
+        </div>
+      </div>
+
+      <!-- Grocery list sections are injected by app.js from GROCERY_LIST -->
+      <div class="card" id="grocery-list-container">
+      </div>
+    </section><!-- /stage-1 -->
+
+    <!-- ==========================================
+         STAGE 3: SHOP
+         ========================================== -->
+    <section class="stage" id="stage-2">
+      <div class="stage-header">
+        <div class="stage-icon">🏪</div>
+        <div>
+          <div class="stage-label">Stage 3</div>
+          <h2 class="stage-title">Shop Efficiently</h2>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">One-trip store layout — shop in this order</div>
+        <div id="store-layout">
+          <!-- Store aisle rows injected by app.js -->
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">Trip summary</div>
+        <div class="summary-rows">
+          <div class="summary-row">
+            <span class="summary-label">Store</span>
+            <span class="summary-value">H-E-B (Mason Rd, Katy)</span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label">Total items</span>
+            <span class="summary-value">18 items</span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label">Est. total</span>
+            <span class="summary-value">~$124</span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label">Est. cost per person/day</span>
+            <span class="summary-value">~$4.43</span>
+          </div>
+        </div>
+      </div>
+    </section><!-- /stage-2 -->
+
+    <!-- ==========================================
+         STAGE 4: PREP
+         ========================================== -->
+    <section class="stage" id="stage-3">
+      <div class="stage-header">
+        <div class="stage-icon">🍳</div>
+        <div>
+          <div class="stage-label">Stage 4</div>
+          <h2 class="stage-title">Prep in Batch</h2>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">Sunday prep sequence — est. 2.5 hrs total</div>
+        <div id="prep-steps">
+          <!-- Steps injected by app.js -->
+        </div>
+      </div>
+    </section><!-- /stage-3 -->
+
+    <!-- ==========================================
+         STAGE 5: STORE & PORTION
+         ========================================== -->
+    <section class="stage" id="stage-4">
+      <div class="stage-header">
+        <div class="stage-icon">📦</div>
+        <div>
+          <div class="stage-label">Stage 5</div>
+          <h2 class="stage-title">Store & Portion</h2>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">Chicken bowl — portion breakdown by family member</div>
+        <div class="table-wrapper">
+          <table class="portion-table">
+            <thead>
+              <tr>
+                <th>Member</th>
+                <th>Chicken</th>
+                <th>Rice</th>
+                <th>Veg</th>
+                <th class="highlight-col">Protein</th>
+                <th class="highlight-col">Calories</th>
+              </tr>
+            </thead>
+            <tbody id="portion-table-body">
+              <!-- Rows injected by app.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">Container &amp; storage guide</div>
+        <div class="summary-rows">
+          <div class="summary-row"><span class="summary-label">Container type</span><span class="summary-value">Glass meal prep (4-cup)</span></div>
+          <div class="summary-row"><span class="summary-label">Label format</span><span class="summary-value">Name · Meal · Day</span></div>
+          <div class="summary-row"><span class="summary-label">Fridge life</span><span class="summary-value">4–5 days (Mon–Fri)</span></div>
+          <div class="summary-row"><span class="summary-label">Chicken bowls</span><span class="summary-value">Days 1–4</span></div>
+          <div class="summary-row"><span class="summary-label">Turkey stir-fry</span><span class="summary-value">Days 1–4</span></div>
+          <div class="summary-row"><span class="summary-label">Hard boiled eggs</span><span class="summary-value">Up to 1 week peeled in water</span></div>
+        </div>
+      </div>
+
+      <!-- Weekly totals -->
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-label">Meals prepped</div>
+          <div class="metric-value">28</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Containers</div>
+          <div class="metric-value">16</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Prep time</div>
+          <div class="metric-value">2.5 hrs</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Cost / meal</div>
+          <div class="metric-value">$4.43</div>
+        </div>
+      </div>
+    </section><!-- /stage-4 -->
+
+  </main><!-- /main-content -->
+
+  <!-- ============================================================
+       MACRO CALCULATOR MODAL
+       ============================================================ -->
+  <div class="modal-overlay" id="macro-calc-modal" onclick="handleModalOverlayClick(event)">
+    <div class="modal">
+
+      <div class="modal-header">
+        <div>
+          <h2 class="modal-title">Macro Calculator</h2>
+          <p class="modal-subtitle" id="calc-member-name">for William</p>
+        </div>
+        <button class="modal-close" onclick="closeMacroCalc()" aria-label="Close">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="modal-body">
+
+        <!-- Member selector -->
+        <div class="calc-field">
+          <label class="calc-label">Family Member</label>
+          <select class="calc-select" id="calc-member-select" onchange="setCalcMember(this.value)">
+            <option value="william">William</option>
+            <option value="julie">Julie</option>
+            <option value="owen">Owen</option>
+            <option value="colin">Colin</option>
+          </select>
+        </div>
+
+        <!-- Gender + Age -->
+        <div class="calc-row">
+          <div class="calc-field">
+            <label class="calc-label">Gender</label>
+            <div class="gender-toggle">
+              <button class="gender-btn active" data-gender="male"   onclick="setCalcGender('male')">Male</button>
+              <button class="gender-btn"        data-gender="female" onclick="setCalcGender('female')">Female</button>
+            </div>
+          </div>
+          <div class="calc-field">
+            <label class="calc-label">Age</label>
+            <div class="unit-input">
+              <input class="calc-input" type="number" id="calc-age" placeholder="0" min="5" max="100"/>
+              <span class="unit-label">yrs</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Weight + Height -->
+        <div class="calc-row">
+          <div class="calc-field">
+            <label class="calc-label">Weight</label>
+            <div class="unit-input">
+              <input class="calc-input" type="number" id="calc-weight" placeholder="0" min="30" max="500"/>
+              <span class="unit-label">lbs</span>
+            </div>
+          </div>
+          <div class="calc-field">
+            <label class="calc-label">Height</label>
+            <div class="height-group">
+              <div class="unit-input">
+                <input class="calc-input" type="number" id="calc-feet" placeholder="0" min="1" max="8"/>
+                <span class="unit-label">ft</span>
+              </div>
+              <div class="unit-input">
+                <input class="calc-input" type="number" id="calc-inches" placeholder="0" min="0" max="11"/>
+                <span class="unit-label">in</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Activity level -->
+        <div class="calc-field">
+          <label class="calc-label">Activity Level</label>
+          <div class="activity-grid">
+            <div class="activity-card" data-factor="1.2"   onclick="setCalcActivity(1.2)">
+              <span class="activity-emoji">🪑</span>
+              <span class="activity-name">Sedentary</span>
+              <span class="activity-desc">Little or no exercise</span>
+              <span class="activity-factor">×1.2</span>
+            </div>
+            <div class="activity-card" data-factor="1.375" onclick="setCalcActivity(1.375)">
+              <span class="activity-emoji">🚶</span>
+              <span class="activity-name">Lightly Active</span>
+              <span class="activity-desc">Light exercise 1–3 days/wk</span>
+              <span class="activity-factor">×1.375</span>
+            </div>
+            <div class="activity-card active" data-factor="1.55"  onclick="setCalcActivity(1.55)">
+              <span class="activity-emoji">🏃</span>
+              <span class="activity-name">Moderately Active</span>
+              <span class="activity-desc">Exercise 3–5 days/wk</span>
+              <span class="activity-factor">×1.55</span>
+            </div>
+            <div class="activity-card" data-factor="1.725" onclick="setCalcActivity(1.725)">
+              <span class="activity-emoji">🏋️</span>
+              <span class="activity-name">Very Active</span>
+              <span class="activity-desc">Hard exercise 6–7 days/wk</span>
+              <span class="activity-factor">×1.725</span>
+            </div>
+            <div class="activity-card" data-factor="1.9"   onclick="setCalcActivity(1.9)">
+              <span class="activity-emoji">🔥</span>
+              <span class="activity-name">Extra Active</span>
+              <span class="activity-desc">Intense training or physical job</span>
+              <span class="activity-factor">×1.9</span>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /modal-body -->
+
+      <div class="modal-footer">
+        <p class="modal-note">Mifflin-St Jeor BMR formula · 30% protein · 25% fat · 45% carbs · phases adjust ±20%</p>
+        <button class="calc-submit" onclick="calculateAndApply()">Calculate &amp; Apply</button>
+      </div>
+
+    </div><!-- /modal -->
+  </div><!-- /modal-overlay -->
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1190,13 +1190,14 @@ html.dark .week-nav-btn:hover {
 
 .chip-avatar--excluded,
 .chip-avatar--excluded.chip-avatar--on {
-  opacity: 0.2;
-  filter: grayscale(1) brightness(1.2);
-  border: 1.5px dashed rgba(128,128,128,0.35);
+  opacity: 0.12;
+  filter: grayscale(1);
+  border: 1.5px dashed rgba(128,128,128,0.3);
+  color: transparent !important;
   cursor: default;
   transform: none !important;
 }
-.chip-avatar--excluded:hover { opacity: 0.2; transform: none; }
+.chip-avatar--excluded:hover { opacity: 0.12; transform: none; }
 
 /* Drop zone shown when a recipe is armed */
 .meal-drop-zone {

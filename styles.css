@@ -58,6 +58,14 @@
   --avatar-amber-text:  #854F0B;
   --avatar-pink-bg:     #FBEAF0;
   --avatar-pink-text:   #993556;
+  --avatar-purple-bg:   #F0EAFB;
+  --avatar-purple-text: #6B21A8;
+  --avatar-teal-bg:     #E0F5F5;
+  --avatar-teal-text:   #0E7490;
+  --avatar-coral-bg:    #FEF0EC;
+  --avatar-coral-text:  #C2410C;
+  --avatar-slate-bg:    #F1F5F9;
+  --avatar-slate-text:  #475569;
 
   /* Spacing */
   --space-xs:   4px;
@@ -105,6 +113,14 @@ html.dark {
   --avatar-amber-text:   #d4943e;
   --avatar-pink-bg:      #2a0f1c;
   --avatar-pink-text:    #d47da0;
+  --avatar-purple-bg:    #1e0a35;
+  --avatar-purple-text:  #c084fc;
+  --avatar-teal-bg:      #042a2e;
+  --avatar-teal-text:    #2dd4bf;
+  --avatar-coral-bg:     #2e100a;
+  --avatar-coral-text:   #fb923c;
+  --avatar-slate-bg:     #1e2433;
+  --avatar-slate-text:   #94a3b8;
 }
 
 
@@ -2137,6 +2153,129 @@ html.dark .time-badge--cook {
 .avatar-blue   { background: var(--avatar-blue-bg);   color: var(--avatar-blue-text); }
 .avatar-amber  { background: var(--avatar-amber-bg);  color: var(--avatar-amber-text); }
 .avatar-pink   { background: var(--avatar-pink-bg);   color: var(--avatar-pink-text); }
+.avatar-purple { background: var(--avatar-purple-bg); color: var(--avatar-purple-text); }
+.avatar-teal   { background: var(--avatar-teal-bg);   color: var(--avatar-teal-text); }
+.avatar-coral  { background: var(--avatar-coral-bg);  color: var(--avatar-coral-text); }
+.avatar-slate  { background: var(--avatar-slate-bg);  color: var(--avatar-slate-text); }
+
+/* Manage members mode */
+.manage-members-btn {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-left: auto;
+}
+.manage-members-btn:hover,
+.manage-members-btn--active {
+  border-color: var(--color-brand);
+  color: var(--color-brand);
+  background: var(--color-bg);
+}
+
+.member-manage-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 0;
+}
+
+.member-color-btn {
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color 0.15s, transform 0.15s;
+  flex-shrink: 0;
+}
+.member-color-btn:hover {
+  border-color: var(--color-brand);
+  transform: scale(1.1);
+}
+.member-color-btn:active { transform: scale(0.95); }
+
+.member-name-input {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 500;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text);
+  min-width: 0;
+}
+.member-name-input:focus {
+  outline: none;
+  border-color: var(--color-brand);
+}
+
+.member-remove-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1.5px solid #fca5a5;
+  background: none;
+  color: #ef4444;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.member-remove-btn:hover { background: #fef2f2; }
+html.dark .member-remove-btn:hover { background: #2d0a0a; }
+
+.add-member-row {
+  padding: var(--space-sm) 0 var(--space-xs);
+  border-top: 0.5px solid var(--color-border);
+  margin-top: var(--space-xs);
+}
+
+.add-member-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-brand);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: var(--space-xs) 0;
+  transition: opacity 0.15s;
+}
+.add-member-btn:hover { opacity: 0.75; }
+
+.member-remove-confirm {
+  margin: 0 0 var(--space-xs);
+  border-radius: var(--radius-sm);
+  border: 1px solid #fca5a5;
+  border-left: 3px solid #ef4444;
+  background: #fff5f5;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+html.dark .member-remove-confirm {
+  background: #2d0a0a;
+  border-color: #7f1d1d;
+}
+.member-remove-confirm-text {
+  font-size: 12px;
+  color: #991b1b;
+  flex: 1;
+  min-width: 120px;
+}
+html.dark .member-remove-confirm-text { color: #fca5a5; }
 
 
 /* ============================================================

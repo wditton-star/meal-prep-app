@@ -32,10 +32,10 @@
    ============================================================ */
 
 /**
- * MEMBERS — family members with their maintenance macro targets.
+ * MEMBERS — family members, persisted to localStorage.
  * Deficit = −20%, Bulking = +20%. Users can override any value per phase.
  */
-const MEMBERS = [
+const MEMBER_DEFAULTS = [
   { id: 'william', name: 'William', initials: 'WD', avatarClass: 'avatar-green',
     maintenance: { cal: 2400, protein: 185, carbs: 200, fat: 75 } },
   { id: 'julie',   name: 'Julie',   initials: 'JD', avatarClass: 'avatar-blue',
@@ -45,6 +45,29 @@ const MEMBERS = [
   { id: 'colin',   name: 'Colin',   initials: 'CD', avatarClass: 'avatar-pink',
     maintenance: { cal: 1400, protein: 75,  carbs: 155, fat: 48 } },
 ];
+
+const AVATAR_COLORS = [
+  'avatar-green', 'avatar-blue', 'avatar-amber', 'avatar-pink',
+  'avatar-purple', 'avatar-teal', 'avatar-coral', 'avatar-slate',
+];
+
+function loadMembers() {
+  try {
+    const raw = localStorage.getItem('prepFlowMembers');
+    if (raw) return JSON.parse(raw);
+  } catch (_) {}
+  return MEMBER_DEFAULTS.map(m => ({ ...m, maintenance: { ...m.maintenance } }));
+}
+function saveMembers() {
+  localStorage.setItem('prepFlowMembers', JSON.stringify(MEMBERS));
+}
+function generateInitials(name) {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return name.substring(0, 2).toUpperCase();
+}
+
+let MEMBERS = loadMembers();
 
 const PHASES = [
   { id: 'deficit',     label: 'Deficit',  factor: 0.8 },
@@ -1105,6 +1128,8 @@ const state = {
   pendingPhasePropagate: null,  // { memberId, currentPhase, scale, targetPhases: ['deficit', ...] }
   excludedMembers:       loadExcludedMembers(),
   pendingExclusion:      null,
+  managingMembers:       false,
+  pendingRemoveMember:   null,
   groceryPrices:         loadGroceryPrices(),
   editingPriceKey:       null,
 };
@@ -1196,6 +1221,42 @@ function renderMacroTargets() {
     { key: 'fat',     label: 'Fat (g)' },
   ];
 
+  // ── Manage mode ──
+  if (state.managingMembers) {
+    const rows = MEMBERS.map(member => {
+      const isPendingRemove = state.pendingRemoveMember === member.id;
+      const confirmHtml = isPendingRemove ? `
+        <div class="member-remove-confirm">
+          <span class="member-remove-confirm-text">Remove <strong>${member.name}</strong> from all plans?</span>
+          <div class="macro-scale-btns">
+            <button class="macro-scale-apply macro-scale-apply--red" onclick="confirmRemoveMember('${member.id}')">Remove</button>
+            <button class="macro-scale-dismiss" onclick="cancelRemoveMember()">Cancel</button>
+          </div>
+        </div>` : '';
+      return `
+        <div class="member-row">
+          ${confirmHtml}
+          <div class="member-manage-row">
+            <button class="avatar ${member.avatarClass} member-color-btn"
+              onclick="cycleMemberColor('${member.id}')"
+              title="Tap to change color">${member.initials}</button>
+            <input class="member-name-input" type="text" value="${member.name}"
+              onblur="updateMemberName('${member.id}', this.value)"
+              onkeydown="if(event.key==='Enter'){this.blur();}" />
+            ${MEMBERS.length > 1
+              ? `<button class="member-remove-btn" onclick="requestRemoveMember('${member.id}')" title="Remove member">−</button>`
+              : ''}
+          </div>
+        </div>`;
+    }).join('');
+    container.innerHTML = rows + `
+      <div class="add-member-row">
+        <button class="add-member-btn" onclick="addMember()">＋ Add family member</button>
+      </div>`;
+    return;
+  }
+
+  // ── Normal mode ──
   container.innerHTML = MEMBERS.map(member => {
     const excluded     = isExcluded(member.id);
     const currentPhase = state.memberPhases[member.id];
@@ -1424,6 +1485,99 @@ function cancelExclusion() {
   state.pendingExclusion = null;
   renderMacroTargets();
 }
+
+// ── Member management ────────────────────────────────────────────
+
+function toggleManageMembers() {
+  state.managingMembers = !state.managingMembers;
+  state.pendingRemoveMember = null;
+  const btn = document.getElementById('manage-members-btn');
+  if (btn) {
+    btn.textContent = state.managingMembers ? 'Done' : 'Manage';
+    btn.classList.toggle('manage-members-btn--active', state.managingMembers);
+  }
+  renderMacroTargets();
+}
+
+function addMember() {
+  const usedColors = MEMBERS.map(m => m.avatarClass);
+  const nextColor = AVATAR_COLORS.find(c => !usedColors.includes(c))
+    || AVATAR_COLORS[MEMBERS.length % AVATAR_COLORS.length];
+  const id = 'member_' + Date.now();
+  const maintenance = { cal: 2000, protein: 150, carbs: 200, fat: 67 };
+  MEMBERS.push({ id, name: 'New member', initials: 'NM', avatarClass: nextColor, maintenance });
+  state.memberPhases[id] = 'maintenance';
+  state.memberMacros[id] = Object.fromEntries(
+    PHASES.map(p => [p.id, scalePhase(maintenance, p.factor)])
+  );
+  saveMembers();
+  saveMemberPhases();
+  saveMemberMacros();
+  renderMacroTargets();
+  requestAnimationFrame(() => {
+    const inputs = document.querySelectorAll('.member-name-input');
+    const last = inputs[inputs.length - 1];
+    if (last) { last.focus(); last.select(); }
+  });
+}
+
+function updateMemberName(id, name) {
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  const member = MEMBERS.find(m => m.id === id);
+  if (!member || member.name === trimmed) return;
+  member.name = trimmed;
+  member.initials = generateInitials(trimmed);
+  saveMembers();
+  renderMacroTargets();
+}
+
+function cycleMemberColor(id) {
+  const member = MEMBERS.find(m => m.id === id);
+  if (!member) return;
+  const idx = AVATAR_COLORS.indexOf(member.avatarClass);
+  member.avatarClass = AVATAR_COLORS[(idx + 1) % AVATAR_COLORS.length];
+  saveMembers();
+  renderMacroTargets();
+}
+
+function requestRemoveMember(id) {
+  if (MEMBERS.length <= 1) return;
+  state.pendingRemoveMember = id;
+  renderMacroTargets();
+}
+
+function confirmRemoveMember(id) {
+  const idx = MEMBERS.findIndex(m => m.id === id);
+  if (idx === -1) return;
+  MEMBERS.splice(idx, 1);
+  delete state.memberPhases[id];
+  delete state.memberMacros[id];
+  state.excludedMembers = state.excludedMembers.filter(x => x !== id);
+  // Remove from all calendar meal assignments
+  for (const weekMeals of Object.values(state.mealsByWeek)) {
+    for (const dayMeals of weekMeals) {
+      for (const meal of dayMeals) {
+        meal.members = (meal.members || []).filter(mid => mid !== id);
+      }
+    }
+  }
+  state.pendingRemoveMember = null;
+  saveMembers();
+  saveMemberPhases();
+  saveMemberMacros();
+  saveExcludedMembers();
+  saveMeals();
+  renderAll();
+  renderMealCalendar();
+}
+
+function cancelRemoveMember() {
+  state.pendingRemoveMember = null;
+  renderMacroTargets();
+}
+
+// ── End member management ────────────────────────────────────────
 
 /**
  * Stage 1 — Recipe picker cards.

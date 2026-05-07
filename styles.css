@@ -590,11 +590,7 @@ html.dark .icon-moon { display: none; }
   background: #dc2626 !important;
 }
 
-.chip-avatar--excluded {
-  opacity: 0.25;
-  filter: grayscale(1);
-  cursor: default;
-}
+/* Moved after .chip-avatar--on so it wins the specificity race */
 
 /* Phase toggle: Deficit / Maintain / Bulk */
 .phase-toggle {
@@ -1191,6 +1187,16 @@ html.dark .week-nav-btn:hover {
 }
 
 .chip-avatar:hover { opacity: 0.8; transform: scale(1.1); }
+
+.chip-avatar--excluded,
+.chip-avatar--excluded.chip-avatar--on {
+  opacity: 0.2;
+  filter: grayscale(1) brightness(1.2);
+  border: 1.5px dashed rgba(128,128,128,0.35);
+  cursor: default;
+  transform: none !important;
+}
+.chip-avatar--excluded:hover { opacity: 0.2; transform: none; }
 
 /* Drop zone shown when a recipe is armed */
 .meal-drop-zone {

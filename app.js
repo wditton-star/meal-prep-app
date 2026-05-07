@@ -1663,10 +1663,32 @@ function renderRecipes() {
           ${recipe.fat ? `<span class="badge badge-fat">${recipe.fat}g fat</span>` : ''}
           <span class="badge badge-calories">${recipe.calories} cal</span>
         </div>
-        ${armed ? `<div class="recipe-armed-hint">Tap a day to add ↓</div>` : ''}
+        ${armed ? buildDayPicker(recipe.id) : ''}
       </div>
     `;
   }).join('');
+}
+
+function buildDayPicker(recipeId) {
+  const startDay  = state.prefs.weekStartDay;
+  const weekMeals = state.mealsByWeek[state.weekOffset] || [];
+  const chips = Array.from({ length: 7 }, (_, i) => {
+    const label   = ALL_DAYS[(startDay + i) % 7];
+    const hasMeal = (weekMeals[i] || []).some(m => m.recipeId === recipeId);
+    return `<button class="recipe-day-chip${hasMeal ? ' has-meal' : ''}" onclick="stampMealFromPicker(event,${i})">${label}${hasMeal ? '<span class="recipe-day-check">✓</span>' : ''}</button>`;
+  }).join('');
+  return `
+    <div class="recipe-day-picker" onclick="event.stopPropagation()">
+      <div class="recipe-day-chips">${chips}</div>
+      <button class="recipe-day-done" onclick="event.stopPropagation();disarmRecipe()">Done</button>
+    </div>
+  `;
+}
+
+function stampMealFromPicker(event, dayIdx) {
+  event.stopPropagation();
+  stampMeal(state.weekOffset, dayIdx);
+  renderRecipes();
 }
 
 /**

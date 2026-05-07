@@ -849,6 +849,7 @@ html.dark .macro-phase-chip {
   border-radius: var(--radius-md);
   padding: var(--space-sm) var(--space-md);
   cursor: pointer;
+  touch-action: manipulation;
   transition: all var(--transition);
 }
 
@@ -870,6 +871,74 @@ html.dark .macro-phase-chip {
   font-weight: 500;
   margin-top: 2px;
 }
+
+/* Inline day picker — appears on armed recipe card */
+.recipe-day-picker {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+.recipe-day-chips {
+  display: flex;
+  gap: 4px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  flex: 1;
+  min-width: 0;
+}
+.recipe-day-chips::-webkit-scrollbar { display: none; }
+
+.recipe-day-chip {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.recipe-day-chip:hover,
+.recipe-day-chip:active {
+  border-color: var(--color-brand);
+  background: var(--color-brand-light);
+  color: var(--color-brand);
+}
+.recipe-day-chip.has-meal {
+  border-color: var(--color-brand);
+  background: var(--color-brand);
+  color: #fff;
+}
+.recipe-day-check {
+  font-size: 9px;
+  opacity: 0.85;
+}
+
+.recipe-day-done {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-strong);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: color 0.12s, border-color 0.12s;
+}
+.recipe-day-done:hover { color: var(--color-text); border-color: var(--color-text-muted); }
 
 .recipe-card-top {
   display: flex;

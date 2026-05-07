@@ -934,7 +934,8 @@ const state = {
   userLocation:        null,
   nearbyStores:        null,
   nearbyStoresLoading: false,
-  pendingMacroScale:   null,  // { memberId, phase, field, scale }
+  pendingMacroScale:     null,  // { memberId, phase, field, scale }
+  pendingPhasePropagate: null,  // { memberId, currentPhase, scale, targetPhases: ['deficit', ...] }
 };
 
 // Transient state for the calculator modal (not persisted between opens)
@@ -1053,7 +1054,6 @@ function renderMacroTargets() {
 
     const pending = state.pendingMacroScale;
     const showPrompt = pending && pending.memberId === member.id && pending.phase === currentPhase;
-    const changedLabel = showPrompt ? FIELDS.find(f => f.key !== pending.field && f.key !== 'cal') : null;
     const scalePrompt = showPrompt ? `
       <div class="macro-scale-prompt">
         <span class="macro-scale-text">
@@ -1062,6 +1062,25 @@ function renderMacroTargets() {
         <div class="macro-scale-btns">
           <button class="macro-scale-apply" onclick="applyMacroScale()">Apply</button>
           <button class="macro-scale-dismiss" onclick="dismissMacroScale()">Dismiss</button>
+        </div>
+      </div>
+    ` : '';
+
+    const propagate = state.pendingPhasePropagate;
+    const showPropagate = propagate && propagate.memberId === member.id;
+    const propagatePrompt = showPropagate ? `
+      <div class="macro-scale-prompt macro-propagate-prompt">
+        <span class="macro-scale-text">Apply ×${propagate.scale.toFixed(2)} to other phases?</span>
+        <div class="macro-propagate-phases">
+          ${PHASES.filter(ph => ph.id !== propagate.currentPhase).map(ph => {
+            const on = propagate.targetPhases.includes(ph.id);
+            return `<button class="macro-phase-chip${on ? ' macro-phase-chip--on' : ''}"
+              onclick="togglePropagatePhase('${ph.id}')">${ph.label}</button>`;
+          }).join('')}
+        </div>
+        <div class="macro-scale-btns">
+          <button class="macro-scale-apply" onclick="applyPhasePropagate()">Apply</button>
+          <button class="macro-scale-dismiss" onclick="dismissPhasePropagate()">Skip</button>
         </div>
       </div>
     ` : '';
@@ -1075,6 +1094,7 @@ function renderMacroTargets() {
         </div>
         <div class="macro-inputs">${macroFields}</div>
         ${scalePrompt}
+        ${propagatePrompt}
       </div>
     `;
   }).join('');
@@ -1133,6 +1153,9 @@ function applyMacroScale() {
   ['cal', 'protein', 'carbs', 'fat'].forEach(f => {
     if (f !== p.field) macros[f] = Math.round(macros[f] * p.scale);
   });
+  // Pre-select all other phases for the follow-up prompt
+  const otherPhases = PHASES.map(ph => ph.id).filter(id => id !== p.phase);
+  state.pendingPhasePropagate = { memberId: p.memberId, currentPhase: p.phase, scale: p.scale, targetPhases: [...otherPhases] };
   state.pendingMacroScale = null;
   saveMemberMacros();
   renderAll();
@@ -1140,6 +1163,33 @@ function applyMacroScale() {
 
 function dismissMacroScale() {
   state.pendingMacroScale = null;
+  renderMacroTargets();
+}
+
+function togglePropagatePhase(phase) {
+  if (!state.pendingPhasePropagate) return;
+  const idx = state.pendingPhasePropagate.targetPhases.indexOf(phase);
+  if (idx === -1) state.pendingPhasePropagate.targetPhases.push(phase);
+  else state.pendingPhasePropagate.targetPhases.splice(idx, 1);
+  renderMacroTargets();
+}
+
+function applyPhasePropagate() {
+  const p = state.pendingPhasePropagate;
+  if (!p) return;
+  p.targetPhases.forEach(phaseId => {
+    const macros = state.memberMacros[p.memberId][phaseId];
+    ['cal', 'protein', 'carbs', 'fat'].forEach(f => {
+      macros[f] = Math.round(macros[f] * p.scale);
+    });
+  });
+  state.pendingPhasePropagate = null;
+  saveMemberMacros();
+  renderAll();
+}
+
+function dismissPhasePropagate() {
+  state.pendingPhasePropagate = null;
   renderMacroTargets();
 }
 

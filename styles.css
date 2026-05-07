@@ -1323,9 +1323,92 @@ html.dark .store-api-error {
 }
 
 .store-chain-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: var(--space-md);
+}
+
+/* Grid used only for not-found chains */
+.store-not-found-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--space-sm);
+}
+
+/* Full-width section per found chain */
+.store-chain-section {
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--color-surface);
+}
+
+.store-chain-section--active {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 1px var(--color-brand);
+}
+
+.store-chain-section-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 8px 14px;
+  background: var(--color-bg);
+  border-bottom: 0.5px solid var(--color-border);
+}
+
+/* Individual branch rows inside a section */
+.store-branch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 0.5px solid var(--color-border);
+  cursor: pointer;
+  gap: 12px;
+  transition: background 0.12s;
+}
+
+.store-branch-row:last-child {
+  border-bottom: none;
+}
+
+.store-branch-row:active,
+.store-branch-row:hover {
+  background: var(--color-surface-hover);
+}
+
+.store-branch-row--selected {
+  background: var(--color-brand-light);
+}
+
+.store-branch-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.store-branch-address {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.store-branch-distance {
+  font-size: 12px;
+  color: var(--color-brand);
+  margin-top: 2px;
+}
+
+.store-branch-arrow {
+  font-size: 18px;
+  color: var(--color-brand);
+  font-weight: 500;
+  flex-shrink: 0;
 }
 
 .store-chain-card {

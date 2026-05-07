@@ -1977,15 +1977,27 @@ function handleStoreSelectorOverlayClick(e) {
   if (e.target === e.currentTarget) closeStoreSelector();
 }
 
-function selectStore(storeId) {
-  const chain = STORE_CHAINS.find(s => s.id === storeId);
+// Called when user taps a specific branch row (auto-detected stores)
+function selectStoreBranch(chainId, branchIdx) {
+  const chain  = STORE_CHAINS.find(s => s.id === chainId);
+  const branch = state.nearbyStores?.[chainId]?.[branchIdx];
   if (!chain) return;
-  // Prefer auto-detected address; fall back to whatever the user typed
-  const found     = state.nearbyStores?.[storeId];
+  state.selectedStore = {
+    id: chain.id, name: chain.name, weeklyAd: chain.weeklyAd,
+    address: branch?.address || null, distanceMi: branch?.distanceMi ?? null,
+  };
+  saveSelectedStore(state.selectedStore);
+  closeStoreSelector();
+  renderStoreBanner();
+}
+
+// Called for fallback (not-found) chains where user typed an address
+function selectStore(storeId) {
+  const chain     = STORE_CHAINS.find(s => s.id === storeId);
+  if (!chain) return;
   const addrInput = document.getElementById(`store-addr-${storeId}`);
-  const address   = found?.address || addrInput?.value.trim() || null;
-  const distanceMi = found?.distanceMi ?? null;
-  state.selectedStore = { id: chain.id, name: chain.name, weeklyAd: chain.weeklyAd, address, distanceMi };
+  const address   = addrInput?.value.trim() || null;
+  state.selectedStore = { id: chain.id, name: chain.name, weeklyAd: chain.weeklyAd, address, distanceMi: null };
   saveSelectedStore(state.selectedStore);
   closeStoreSelector();
   renderStoreBanner();
@@ -2023,8 +2035,10 @@ async function fetchNearbyStores(lat, lng) {
   state.nearbyStores        = null;
   renderStoreSelectorModal();
 
-  const radius = 16000;
-  const query  = `[out:json][timeout:10];node["shop"="supermarket"](around:${radius},${lat},${lng});out 80;`;
+  // nwr = nodes + ways + relations; center gives coords for non-point shapes
+  // Include both supermarket and grocery tags to catch all store types in OSM
+  const radius = 24000; // ~15 miles
+  const query  = `[out:json][timeout:15];nwr["shop"~"supermarket|grocery"](around:${radius},${lat},${lng});out center 200;`;
   const url    = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
 
   try {
@@ -2032,17 +2046,29 @@ async function fetchNearbyStores(lat, lng) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
 
+    // Collect ALL branches per chain, then sort by distance
     const nearby = {};
     for (const elem of data.elements || []) {
+      const eLat = elem.lat ?? elem.center?.lat;
+      const eLng = elem.lon ?? elem.center?.lon;
+      if (!eLat || !eLng) continue;
+
       const name = (elem.tags?.name || '').trim();
       if (!name) continue;
       const chain = STORE_CHAINS.find(c => c.nameMatch.test(name));
       if (!chain) continue;
-      const distanceMi = haversineDistance(lat, lng, elem.lat, elem.lon);
+
+      const distanceMi = haversineDistance(lat, lng, eLat, eLng);
       const address    = fmtOsmAddress(elem.tags || {});
-      if (!nearby[chain.id] || distanceMi < nearby[chain.id].distanceMi) {
-        nearby[chain.id] = { address, distanceMi };
-      }
+      if (!nearby[chain.id]) nearby[chain.id] = [];
+      nearby[chain.id].push({ address, distanceMi });
+    }
+
+    // Sort each chain's branches by distance, keep closest 5
+    for (const id of Object.keys(nearby)) {
+      nearby[id] = nearby[id]
+        .sort((a, b) => a.distanceMi - b.distanceMi)
+        .slice(0, 5);
     }
 
     state.nearbyStores = nearby;
@@ -2097,31 +2123,52 @@ function renderStoreSelectorModal() {
     return;
   }
 
-  // Split into found nearby vs not found
-  const foundChains    = STORE_CHAINS.filter(c => nearby?.[c.id]);
-  const notFoundChains = STORE_CHAINS.filter(c => nearby && !nearby[c.id]);
-  const allChains      = nearby ? [...foundChains, ...notFoundChains] : STORE_CHAINS;
+  const mapsUrl = (chain) => loc
+    ? `https://www.google.com/maps/search/${chain.mapQ}/@${loc.lat},${loc.lng},13z`
+    : `https://www.google.com/maps/search/${chain.mapQ}`;
 
-  const renderFound = (chain) => {
-    const isSelected = selected?.id === chain.id;
-    const found      = nearby[chain.id];
+  // Found chains sorted by their closest branch
+  const foundChains = nearby
+    ? STORE_CHAINS
+        .filter(c => nearby[c.id]?.length)
+        .sort((a, b) => nearby[a.id][0].distanceMi - nearby[b.id][0].distanceMi)
+    : [];
+
+  // Full-width section per chain, one tappable row per branch
+  const foundHtml = foundChains.map(chain => {
+    const branches        = nearby[chain.id];
+    const isSelectedChain = selected?.id === chain.id;
+
+    const rows = branches.map((branch, idx) => {
+      const isSelectedBranch = isSelectedChain && selected?.address === branch.address;
+      return `
+        <div class="store-branch-row${isSelectedBranch ? ' store-branch-row--selected' : ''}"
+             onclick="selectStoreBranch('${chain.id}', ${idx})">
+          <div class="store-branch-left">
+            <div class="store-branch-address">${branch.address || chain.name}</div>
+            <div class="store-branch-distance">${branch.distanceMi.toFixed(1)} mi away</div>
+          </div>
+          <div class="store-branch-arrow">${isSelectedBranch ? '✓' : '›'}</div>
+        </div>
+      `;
+    }).join('');
+
     return `
-      <div class="store-chain-card${isSelected ? ' store-chain-card--selected' : ''}"
-           onclick="selectStore('${chain.id}')">
-        ${isSelected ? '<div class="store-chain-check">✓</div>' : ''}
-        <div class="store-chain-name">${chain.name}</div>
-        <div class="store-chain-distance">${found.distanceMi.toFixed(1)} mi away</div>
-        ${found.address ? `<div class="store-chain-address">${found.address}</div>` : ''}
+      <div class="store-chain-section${isSelectedChain ? ' store-chain-section--active' : ''}">
+        <div class="store-chain-section-name">${chain.name}</div>
+        ${rows}
       </div>
     `;
-  };
+  }).join('');
 
-  const renderFallback = (chain) => {
+  // Compact grid for chains not found nearby
+  const notFoundChains = nearby
+    ? STORE_CHAINS.filter(c => !nearby[c.id]?.length)
+    : STORE_CHAINS;
+
+  const fallbackHtml = notFoundChains.map(chain => {
     const isSelected   = selected?.id === chain.id;
     const savedAddress = isSelected ? (selected.address || '') : '';
-    const mapsUrl      = loc
-      ? `https://www.google.com/maps/search/${chain.mapQ}/@${loc.lat},${loc.lng},13z`
-      : `https://www.google.com/maps/search/${chain.mapQ}`;
     return `
       <div class="store-chain-card store-chain-card--dim${isSelected ? ' store-chain-card--selected' : ''}"
            onclick="selectStore('${chain.id}')">
@@ -2136,28 +2183,20 @@ function renderStoreSelectorModal() {
           onclick="event.stopPropagation()"
           onfocus="event.stopPropagation()"
         />
-        <a class="store-chain-map-link"
-           href="${mapsUrl}"
-           target="_blank"
-           rel="noopener noreferrer"
-           onclick="event.stopPropagation()">📍 ${loc ? 'Find near me' : 'Search on Maps'}</a>
+        <a class="store-chain-map-link" href="${mapsUrl(chain)}" target="_blank"
+           rel="noopener noreferrer" onclick="event.stopPropagation()">
+          📍 ${loc ? 'Find near me' : 'Search on Maps'}
+        </a>
       </div>
     `;
-  };
+  }).join('');
 
-  // Build sections
-  let html = '';
-
-  if (foundChains.length) {
-    html += foundChains.map(renderFound).join('');
-  }
-
+  let html = foundHtml;
   if (notFoundChains.length && foundChains.length) {
-    html += `<div class="store-section-divider">Not found within 10 mi</div>`;
-    html += notFoundChains.map(renderFallback).join('');
+    html += `<div class="store-section-divider">Not found within 15 mi</div>
+             <div class="store-not-found-grid">${fallbackHtml}</div>`;
   } else if (!nearby) {
-    // No location yet — show all chains with fallback cards
-    html += allChains.map(renderFallback).join('');
+    html = `<div class="store-not-found-grid">${fallbackHtml}</div>`;
   }
 
   grid.innerHTML = html;

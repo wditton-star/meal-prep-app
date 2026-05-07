@@ -1078,6 +1078,11 @@ function toggleFavorite(recipeId, event) {
   else state.favoriteRecipes.add(recipeId);
   saveFavorites();
   renderRecipes();
+  const etgModal = document.getElementById('etg-browser-modal');
+  if (etgModal && etgModal.classList.contains('open')) {
+    const currentQuery = document.getElementById('etg-filter-input')?.value || '';
+    renderEtgBrowser(currentQuery);
+  }
 }
 function setRecipeFilter(filter) {
   state.recipeFilter = filter;
@@ -2467,14 +2472,22 @@ function renderEtgBrowser(query = '') {
     return;
   }
 
-  grid.innerHTML = filtered.map(recipe => {
+  const sorted = [...filtered].sort((a, b) => {
+    const af = state.favoriteRecipes.has(a.id) ? 0 : 1;
+    const bf = state.favoriteRecipes.has(b.id) ? 0 : 1;
+    return af - bf;
+  });
+
+  grid.innerHTML = sorted.map(recipe => {
     const alreadyAdded = RECIPES.some(r => r.id === recipe.id);
     const hasIngredients = recipe.ingredients && recipe.ingredients.length > 0;
+    const starred = state.favoriteRecipes.has(recipe.id);
     return `
-      <div class="etg-recipe-card">
+      <div class="etg-recipe-card${starred ? ' favorited' : ''}">
         <div class="etg-recipe-top">
           <div class="etg-recipe-name">${recipe.name}</div>
           <div class="etg-recipe-actions">
+            <button class="recipe-star-btn${starred ? ' starred' : ''}" onclick="toggleFavorite('${recipe.id}', event)" title="${starred ? 'Remove from favorites' : 'Add to favorites'}" aria-label="${starred ? 'Remove from favorites' : 'Add to favorites'}">★</button>
             ${hasIngredients ? `<button class="etg-ing-btn" onclick="toggleIngPopover(event,'${recipe.id}')" title="View ingredients" aria-label="View ingredients">
               <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="0" y="1" width="8" height="1.5" rx="0.75" fill="currentColor"/><rect x="0" y="5" width="11" height="1.5" rx="0.75" fill="currentColor"/><rect x="0" y="9" width="9" height="1.5" rx="0.75" fill="currentColor"/></svg>
             </button>` : ''}

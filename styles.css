@@ -2603,6 +2603,15 @@ html.dark .etg-recipe-card {
   border-color: var(--color-border-strong);
 }
 
+.etg-recipe-card.favorited {
+  border-top: 2px solid #f59e0b;
+  background: linear-gradient(160deg, #fffbeb 0%, var(--color-surface) 60%);
+}
+html.dark .etg-recipe-card.favorited {
+  background: linear-gradient(160deg, #2a1f06 0%, var(--color-surface) 60%);
+}
+.etg-recipe-card:hover .recipe-star-btn { opacity: 0.6; }
+
 .etg-recipe-actions {
   display: flex;
   align-items: center;

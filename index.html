@@ -122,15 +122,22 @@
 
       <!-- Recipe picker -->
       <div class="card">
-        <div class="card-header">Pick recipes for the week</div>
+        <div class="card-header">
+          Pick recipes for the week
+          <button class="browse-recipes-btn" onclick="openEtgBrowser()">Browse Eat The Gains ↗</button>
+        </div>
         <div class="recipe-grid" id="recipe-grid">
           <!-- Recipe cards are injected by app.js from the RECIPES array -->
         </div>
       </div>
 
+      <!-- Arm banner — shown when a recipe is armed for stamping -->
+      <div id="arm-banner" style="display:none"></div>
+
       <!-- Weekly meal calendar -->
       <div class="card">
         <div class="card-header" id="meal-cal-header">Meal calendar</div>
+        <div id="cal-prefs-panel" style="display:none"></div>
         <div class="meal-calendar" id="meal-calendar">
           <!-- Day columns are injected by app.js -->
         </div>
@@ -186,6 +193,11 @@
         </div>
       </div>
 
+      <!-- Store selector banner -->
+      <div class="card store-banner-card" id="store-banner">
+        <!-- Rendered by renderStoreBanner() -->
+      </div>
+
       <div class="card">
         <div class="card-header">One-trip store layout — shop in this order</div>
         <div id="store-layout">
@@ -229,7 +241,13 @@
       </div>
 
       <div class="card">
-        <div class="card-header">Sunday prep sequence — est. 2.5 hrs total</div>
+        <div class="card-header" id="prep-card-header">
+          <span id="prep-header-title">Prep plan</span>
+          <div class="prep-mode-toggle">
+            <button class="prep-mode-btn active" onclick="setPrepMode('batch')">Batch session</button>
+            <button class="prep-mode-btn" onclick="setPrepMode('by-meal')">By meal</button>
+          </div>
+        </div>
         <div id="prep-steps">
           <!-- Steps injected by app.js -->
         </div>
@@ -249,16 +267,15 @@
       </div>
 
       <div class="card">
-        <div class="card-header">Chicken bowl — portion breakdown by family member</div>
+        <div class="card-header">Portion breakdown by meal &amp; member</div>
         <div class="table-wrapper">
           <table class="portion-table">
             <thead>
               <tr>
                 <th>Member</th>
-                <th>Chicken</th>
-                <th>Rice</th>
-                <th>Veg</th>
+                <th>Days</th>
                 <th class="highlight-col">Protein</th>
+                <th>Carbs / Fat</th>
                 <th class="highlight-col">Calories</th>
               </tr>
             </thead>
@@ -303,6 +320,45 @@
     </section><!-- /stage-4 -->
 
   </main><!-- /main-content -->
+
+  <!-- ============================================================
+       EAT THE GAINS RECIPE BROWSER MODAL
+       ============================================================ -->
+  <div class="modal-overlay" id="etg-browser-modal" onclick="handleEtgOverlayClick(event)">
+    <div class="modal modal--wide">
+
+      <div class="modal-header">
+        <div>
+          <h2 class="modal-title">Eat The Gains</h2>
+          <p class="modal-subtitle">eatthegains.com · meal prep recipes</p>
+        </div>
+        <button class="modal-close" onclick="closeEtgBrowser()" aria-label="Close">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="etg-filter-bar">
+        <input
+          class="etg-filter-input"
+          id="etg-filter-input"
+          type="text"
+          placeholder="Filter by name or ingredient…"
+          oninput="onEtgFilter(this.value)"
+          autocomplete="off"
+        />
+        <span class="etg-filter-count" id="etg-filter-count"></span>
+      </div>
+
+      <div class="modal-body">
+        <div class="etg-recipe-grid" id="etg-recipe-grid">
+          <!-- Rendered by renderEtgBrowser() in app.js -->
+        </div>
+      </div>
+
+    </div><!-- /modal -->
+  </div><!-- /modal-overlay -->
 
   <!-- ============================================================
        MACRO CALCULATOR MODAL
@@ -423,6 +479,38 @@
 
     </div><!-- /modal -->
   </div><!-- /modal-overlay -->
+
+  <!-- ============================================================
+       STORE SELECTOR MODAL
+       ============================================================ -->
+  <div class="modal-overlay" id="store-selector-modal" onclick="handleStoreSelectorOverlayClick(event)">
+    <div class="modal modal--wide">
+
+      <div class="modal-header">
+        <div>
+          <h2 class="modal-title">Select your store</h2>
+          <p class="modal-subtitle">Choose where you shop — we'll link you to their weekly ad</p>
+        </div>
+        <button class="modal-close" onclick="closeStoreSelector()" aria-label="Close">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div class="store-location-row">
+          <button class="store-location-btn" id="store-location-btn" onclick="requestStoreLocation()">
+            📍 Use my location for nearby results
+          </button>
+        </div>
+        <div class="store-chain-grid" id="store-chain-grid">
+          <!-- Rendered by renderStoreSelectorModal() -->
+        </div>
+      </div>
+
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>

@@ -389,10 +389,90 @@ html.dark .icon-moon { display: none; }
   justify-content: space-between;
 }
 
+.cal-header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
 .week-nav {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
+}
+
+/* Gear / prefs button in the calendar header */
+.cal-prefs-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0.5px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--color-text-muted);
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+
+.cal-prefs-btn:hover,
+.cal-prefs-btn.active {
+  background: var(--color-surface-muted);
+  color: var(--color-brand);
+  border-color: var(--color-brand);
+}
+
+/* Calendar preferences panel */
+#cal-prefs-panel {
+  background: var(--color-surface-muted);
+  border: 0.5px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  margin-bottom: var(--space-md);
+}
+
+.cal-prefs-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.cal-prefs-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.cal-prefs-days {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.cal-prefs-day-btn {
+  background: var(--color-surface);
+  border: 0.5px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+
+.cal-prefs-day-btn:hover {
+  color: var(--color-text);
+  border-color: var(--color-brand);
+}
+
+.cal-prefs-day-btn.active {
+  background: var(--color-brand);
+  border-color: var(--color-brand);
+  color: #fff;
 }
 
 .week-nav-label {
@@ -553,17 +633,54 @@ html.dark .icon-moon { display: none; }
   background: var(--color-brand-light);
 }
 
-/* Selected state — toggled by app.js */
-.recipe-card.selected {
+/* Armed state — recipe is ready to stamp onto calendar days */
+.recipe-card.armed {
   border-color: var(--color-brand);
   background: var(--color-brand-light);
+  box-shadow: 0 0 0 2px var(--color-brand);
+}
+
+.recipe-armed-hint {
+  font-size: 10px;
+  color: var(--color-brand);
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+.recipe-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-xs);
 }
 
 .recipe-name {
   font-size: 13px;
   font-weight: 500;
   color: var(--color-text);
-  margin-bottom: var(--space-xs);
+  line-height: 1.3;
+}
+
+.recipe-remove-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  padding: 0 2px;
+  line-height: 1;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity var(--transition), color var(--transition);
+}
+
+.recipe-card:hover .recipe-remove-btn {
+  opacity: 1;
+}
+
+.recipe-remove-btn:hover {
+  color: #e05555;
 }
 
 /* Macro badge row inside each recipe card */
@@ -663,9 +780,9 @@ html.dark .step-number {
 }
 
 /* Meal slots — neon glow when filled */
-html.dark .meal-slot.filled {
+html.dark .meal-chip {
   border-color: rgba(29, 158, 117, 0.5);
-  box-shadow: 0 0 6px rgba(29, 158, 117, 0.25);
+  box-shadow: 0 0 6px rgba(29, 158, 117, 0.15);
 }
 
 /* Theme toggle — neon border in dark mode */
@@ -731,67 +848,201 @@ html.dark .week-nav-btn:hover {
    10. MEAL CALENDAR
    ============================================================ */
 .meal-calendar {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: var(--space-xs);
-}
-
-.day-col {
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
+  gap: 2px;
 }
 
-.day-header {
+.day-row {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: var(--space-sm);
+  align-items: start;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.day-row:last-child {
+  border-bottom: none;
+}
+
+.day-row-hdr {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  padding-right: var(--space-sm);
+  padding-top: 4px;
+  border-right: 1px solid var(--color-border);
+  align-self: stretch;
+  justify-content: flex-start;
+}
+
+.day-row-name {
   font-size: 11px;
   font-weight: 500;
   color: var(--color-text-muted);
-  text-align: center;
-  padding-bottom: 4px;
+  line-height: 1.2;
 }
 
-.day-date {
-  display: block;
-  font-size: 14px;
-  font-weight: 500;
+.day-row-date {
+  font-size: 20px;
+  font-weight: 600;
   color: var(--color-text);
-  line-height: 1.4;
+  line-height: 1.2;
 }
 
-.meal-slot {
-  background: var(--color-surface-muted);
-  border: 0.5px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 6px;
-  min-height: 50px;
-  cursor: pointer;
-  transition: border-color var(--transition), background var(--transition);
+/* Day meals container — horizontal flow */
+.day-meals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 2px 0;
+  min-height: 52px;
 }
 
-.meal-slot:hover {
-  border-color: var(--color-brand);
-}
-
-/* A slot that has a meal assigned */
-.meal-slot.filled {
+/* Each assigned meal within a day */
+.meal-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   background: var(--color-brand-light);
-  border-color: var(--color-brand-mid);
+  border: 1px solid var(--color-brand-mid);
+  border-radius: var(--radius-md);
+  padding: 9px 11px;
+  cursor: grab;
+  transition: opacity var(--transition), box-shadow var(--transition);
+  min-width: 160px;
+  max-width: 260px;
 }
 
-.meal-slot-label {
-  font-size: 9px;
-  color: var(--color-text-faint);
-  margin-bottom: 2px;
+.meal-chip:active { cursor: grabbing; }
+
+.meal-chip.dragging {
+  opacity: 0.4;
 }
 
-.meal-slot-text {
-  font-size: 9px;
-  color: var(--color-text-muted);
-  line-height: 1.3;
+.meal-chip-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
 }
 
-.meal-slot.filled .meal-slot-text {
+.meal-chip-name {
+  font-size: 12px;
+  font-weight: 500;
   color: var(--color-brand-dark);
+  line-height: 1.4;
+  flex: 1;
+}
+
+.meal-chip-remove {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  padding: 0 2px;
+  line-height: 1;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity var(--transition), color var(--transition);
+}
+
+.meal-chip:hover .meal-chip-remove { opacity: 1; }
+.meal-chip-remove:hover { color: #e05555; }
+
+/* Member avatar badges on meal chips */
+.chip-avatars {
+  display: flex;
+  gap: 5px;
+}
+
+.chip-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  opacity: 0.25;
+  transition: opacity var(--transition), border-color var(--transition), transform var(--transition);
+  flex-shrink: 0;
+}
+
+.chip-avatar--on {
+  opacity: 1;
+  border-color: rgba(255,255,255,0.2);
+}
+
+.chip-avatar:hover { opacity: 0.8; transform: scale(1.1); }
+
+/* Drop zone shown when a recipe is armed */
+.meal-drop-zone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--color-brand);
+  border-radius: var(--radius-md);
+  padding: 9px 16px;
+  font-size: 11px;
+  color: var(--color-brand);
+  cursor: pointer;
+  transition: background var(--transition);
+  min-height: 52px;
+}
+
+.meal-drop-zone:hover {
+  background: var(--color-brand-light);
+}
+
+/* Empty day placeholder when no recipe is armed */
+.meal-day-empty {
+  font-size: 11px;
+  color: var(--color-text-faint);
+  padding: 14px 0;
+  align-self: center;
+}
+
+/* Day row drag-over highlight */
+.day-row.drag-over .day-meals {
+  background: var(--color-brand-light);
+  border-radius: var(--radius-sm);
+  outline: 1px dashed var(--color-brand);
+}
+
+/* Arm banner */
+#arm-banner {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  background: var(--color-brand-light);
+  border: 1px solid var(--color-brand-mid);
+  border-radius: var(--radius-md);
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--color-brand-dark);
+}
+
+#arm-banner button {
+  background: transparent;
+  border: 0.5px solid var(--color-brand-mid);
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  font-size: 11px;
+  color: var(--color-brand-dark);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+#arm-banner button:hover {
+  background: var(--color-brand-mid);
 }
 
 
@@ -942,6 +1193,256 @@ html.dark .week-nav-btn:hover {
   line-height: 1.5;
 }
 
+/* ── Store banner card ────────────────────────────────────── */
+.store-banner-card {
+  padding: var(--space-md) var(--space-lg);
+}
+
+.store-banner-empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.store-banner-selected {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.store-banner-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.store-banner-label {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.store-banner-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.store-banner-address {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-top: 1px;
+}
+
+.store-banner-btns {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.store-select-btn,
+.store-change-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.store-select-btn:hover,
+.store-change-btn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.weekly-ad-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: none;
+  background: var(--color-brand);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.weekly-ad-btn:hover {
+  opacity: 0.88;
+}
+
+/* ── Store selector modal grid ────────────────────────────── */
+.store-location-row {
+  margin-bottom: var(--space-md);
+}
+
+.store-location-btn {
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px dashed var(--color-border);
+  background: transparent;
+  color: var(--color-brand);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.store-location-btn:hover:not(:disabled) {
+  background: var(--color-brand-light);
+}
+
+.store-location-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.store-api-error {
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: #fee2e2;
+  color: #991b1b;
+  font-size: 12px;
+  margin-bottom: var(--space-md);
+}
+
+html.dark .store-api-error {
+  background: #3b1515;
+  color: #fca5a5;
+}
+
+.store-chain-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--space-md);
+}
+
+.store-chain-card {
+  position: relative;
+  padding: var(--space-md);
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.store-chain-card:hover {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 1px var(--color-brand);
+}
+
+.store-chain-card--selected {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 2px var(--color-brand);
+  background: var(--color-brand-light);
+}
+
+.store-chain-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 5px;
+  padding-right: 24px; /* clear the ✓ badge */
+}
+
+.store-chain-distance {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-brand);
+  margin-bottom: 2px;
+}
+
+.store-chain-address {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+  margin-bottom: 5px;
+}
+
+.store-chain-loading {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  font-style: italic;
+  margin-bottom: 5px;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+
+.store-chain-none {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-bottom: 5px;
+}
+
+.store-chain-addr-input {
+  width: 100%;
+  padding: 5px 8px;
+  border-radius: 5px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 11px;
+  margin: 4px 0 6px;
+  box-sizing: border-box;
+}
+
+.store-chain-addr-input:focus {
+  outline: none;
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 2px var(--color-brand-light);
+}
+
+.store-chain-addr-input::placeholder {
+  color: var(--color-text-muted);
+  opacity: 0.75;
+}
+
+.store-chain-map-link {
+  font-size: 11px;
+  color: var(--color-brand);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 4px;
+}
+
+.store-chain-map-link:hover {
+  text-decoration: underline;
+}
+
+.store-chain-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-brand-dark);
+  background: var(--color-brand-light);
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 
 /* ============================================================
    14. PREP STEPS
@@ -989,9 +1490,117 @@ html.dark .week-nav-btn:hover {
 }
 
 .step-time {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.time-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 20px;
   font-size: 11px;
-  color: var(--color-brand);
-  margin-top: 5px;
+  font-weight: 500;
+}
+
+.time-badge--active {
+  background: var(--color-brand-light);
+  color: var(--color-brand-dark);
+}
+
+.time-badge--cook {
+  background: #fff3cd;
+  color: #856404;
+}
+
+html.dark .time-badge--cook {
+  background: #3d2e00;
+  color: #ffc107;
+}
+
+/* By-meal section layout */
+.by-meal-section {
+  padding: var(--space-md) 0;
+  border-bottom: 0.5px solid var(--color-border);
+}
+
+.by-meal-section:last-child {
+  border-bottom: none;
+}
+
+.by-meal-header {
+  display: flex;
+  gap: var(--space-md);
+  align-items: flex-start;
+  margin-bottom: var(--space-sm);
+}
+
+.by-meal-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-brand);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.by-meal-info {
+  flex: 1;
+}
+
+.by-meal-steps {
+  padding-left: 44px;
+}
+
+.prep-step--sub {
+  padding: 6px 0;
+  border-bottom: none;
+}
+
+.step-number--sm {
+  width: 20px;
+  height: 20px;
+  font-size: 11px;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+}
+
+/* Prep card header mode toggle */
+.prep-mode-toggle {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.prep-mode-btn {
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.prep-mode-btn.active {
+  background: var(--color-brand);
+  color: #fff;
+  border-color: var(--color-brand);
+}
+
+.prep-mode-btn:hover:not(.active) {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
 }
 
 
@@ -1105,6 +1714,89 @@ html.dark .week-nav-btn:hover {
    18. UTILITY
    ============================================================ */
 
+/* ── Calendar-driven stage empty states ── */
+.plan-empty-state {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: 24px 16px;
+  font-style: italic;
+}
+
+/* ── Grocery list: recipe source tags ── */
+.ing-sources {
+  font-size: 10px;
+  color: var(--color-text-faint);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 6px;
+}
+
+/* ── Prep step enhancements ── */
+.prep-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 8px;
+  flex-wrap: wrap;
+}
+
+.prep-batch-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-brand);
+  background: var(--color-brand-light);
+  border-radius: var(--radius-sm);
+  padding: 2px 7px;
+}
+
+.prep-days {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.prep-avatars {
+  display: flex;
+  gap: 4px;
+}
+
+.prep-avatar {
+  width: 20px;
+  height: 20px;
+  font-size: 7px;
+}
+
+.prep-ing-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
+.prep-ing-list li {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+/* ── Portion table: new columns ── */
+.portion-recipe-header td {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-brand);
+  padding: 12px 8px 4px;
+  border-bottom: 1px solid var(--color-brand-mid);
+}
+
+.portion-days {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
 /* Visually hidden — for screen readers */
 .sr-only {
   position: absolute;
@@ -1121,6 +1813,245 @@ html.dark .week-nav-btn:hover {
 /* ============================================================
    19. MACRO CALCULATOR MODAL
    ============================================================ */
+
+/* Browse Eat The Gains button inside recipe card-header */
+.browse-recipes-btn {
+  background: transparent;
+  border: 0.5px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+
+.browse-recipes-btn:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-brand);
+  border-color: var(--color-brand);
+}
+
+/* Wider modal variant for ETG browser */
+.modal--wide {
+  max-width: 680px;
+}
+
+/* ETG filter bar */
+.etg-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--border);
+}
+
+.etg-filter-input {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.etg-filter-input:focus {
+  border-color: var(--primary);
+}
+
+.etg-filter-input::placeholder {
+  color: var(--text-muted);
+}
+
+.etg-filter-count {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.etg-no-results {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: var(--text-muted);
+  padding: var(--space-xl) 0;
+  font-size: 0.9rem;
+}
+
+/* ETG recipe grid inside the browser modal */
+.etg-recipe-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-sm);
+}
+
+.etg-recipe-card {
+  border: 0.5px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.etg-recipe-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-xs);
+}
+
+.etg-recipe-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text);
+  line-height: 1.3;
+}
+
+.etg-recipe-link {
+  font-size: 11px;
+  color: var(--color-brand);
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+  padding-top: 1px;
+}
+
+.etg-recipe-link:hover {
+  text-decoration: underline;
+}
+
+.etg-add-btn {
+  margin-top: 2px;
+  background: var(--color-brand);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  align-self: flex-start;
+  transition: opacity var(--transition);
+}
+
+.etg-add-btn:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.etg-add-btn.added {
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  cursor: default;
+}
+
+html.dark .etg-recipe-card {
+  border-color: var(--color-border-strong);
+}
+
+.etg-recipe-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.etg-ing-btn {
+  background: transparent;
+  border: 0.5px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: 3px 5px;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  line-height: 1;
+  transition: color var(--transition), border-color var(--transition);
+}
+
+.etg-ing-btn:hover {
+  color: var(--color-brand);
+  border-color: var(--color-brand);
+}
+
+/* Ingredient popover */
+#etg-ing-popover {
+  position: absolute;
+  z-index: 9999;
+  width: 240px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  padding: 10px 12px;
+  font-size: 12px;
+}
+
+.eip-header {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.eip-title {
+  font-weight: 600;
+  color: var(--color-brand);
+  font-size: 12px;
+  flex: 1;
+}
+
+.eip-servings {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.eip-close {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  padding: 0;
+  line-height: 1;
+  margin-left: auto;
+}
+
+.eip-close:hover { color: var(--color-text); }
+
+.eip-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.eip-row {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.eip-amt {
+  color: var(--color-text-muted);
+  min-width: 52px;
+  text-align: right;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.eip-name {
+  color: var(--color-text);
+  line-height: 1.3;
+}
 
 /* Calculator icon button inside card-header */
 .calc-icon-btn {

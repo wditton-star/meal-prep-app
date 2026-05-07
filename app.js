@@ -1648,6 +1648,7 @@ function renderRecipes() {
       <div
         class="recipe-card${armed ? ' armed' : ''}${starred ? ' favorited' : ''}"
         data-recipe-index="${i}"
+        ontouchend="armRecipeTouch('${recipe.id}', event)"
         onclick="armRecipe('${recipe.id}')"
       >
         <div class="recipe-card-top">
@@ -1678,7 +1679,7 @@ function buildDayPicker(recipeId) {
     return `<button class="recipe-day-chip${hasMeal ? ' has-meal' : ''}" onclick="stampMealFromPicker(event,${i})">${label}${hasMeal ? '<span class="recipe-day-check">✓</span>' : ''}</button>`;
   }).join('');
   return `
-    <div class="recipe-day-picker" onclick="event.stopPropagation()">
+    <div class="recipe-day-picker" ontouchend="event.stopPropagation()" onclick="event.stopPropagation()">
       <div class="recipe-day-chips">${chips}</div>
       <button class="recipe-day-done" onclick="event.stopPropagation();disarmRecipe()">Done</button>
     </div>
@@ -2207,6 +2208,14 @@ function armRecipe(recipeId) {
   state.armedRecipeId = state.armedRecipeId === recipeId ? null : recipeId;
   renderRecipes();
   renderMealCalendar();
+}
+
+function armRecipeTouch(recipeId, event) {
+  // If the touch landed on a button (star, remove, day chip) let that button handle it
+  if (event.target.closest('button')) return;
+  // Prevent the ghost click iOS fires ~300ms after touchend from double-firing
+  event.preventDefault();
+  armRecipe(recipeId);
 }
 
 function disarmRecipe() {

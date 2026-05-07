@@ -116,13 +116,14 @@ function buildWeekPlan() {
       const recipe = [...RECIPES, ...ETG_RECIPES].find(r => r.id === recipeId);
       if (!recipe) continue;
 
-      const portionSum = members.reduce((s, mid) => s + getMemberScaleFactor(mid), 0);
+      const activeMembers = members.filter(mid => !isExcluded(mid));
+      const portionSum = activeMembers.reduce((s, mid) => s + getMemberScaleFactor(mid), 0);
       const batchScale = portionSum / (recipe.servings || 4);
 
       if (!recipeMap[recipeId]) {
         recipeMap[recipeId] = { recipe, instances: [], totalScale: 0 };
       }
-      recipeMap[recipeId].instances.push({ dayIdx, members, batchScale });
+      recipeMap[recipeId].instances.push({ dayIdx, members: activeMembers, batchScale });
       recipeMap[recipeId].totalScale += batchScale;
 
       if (recipe.ingredients) {
@@ -1714,8 +1715,8 @@ function renderPortionTable() {
     // Section header row for this recipe
     rows.push(`<tr class="portion-recipe-header"><td colspan="5">${recipe.name}</td></tr>`);
 
-    // Collect all unique non-excluded members across all instances of this recipe
-    const memberIds = [...new Set(instances.flatMap(inst => inst.members))].filter(id => !isExcluded(id));
+    // Collect all unique members across all instances of this recipe (excluded already filtered in buildWeekPlan)
+    const memberIds = [...new Set(instances.flatMap(inst => inst.members))];
 
     for (const mid of memberIds) {
       const m = MEMBERS.find(x => x.id === mid);

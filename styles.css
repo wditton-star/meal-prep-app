@@ -591,6 +591,9 @@ html.dark .icon-moon { display: none; }
 .macro-field label {
   font-size: 10px;
   color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 3px;
 }
 
 .macro-field input {
@@ -609,6 +612,107 @@ html.dark .icon-moon { display: none; }
   outline: none;
   border-color: var(--color-brand);
 }
+
+/* Override indicators */
+.macro-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.override-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f59e0b;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.input--overridden {
+  border-left: 3px solid #f59e0b !important;
+  background: #fffbeb !important;
+  padding-left: 4px !important;
+}
+
+html.dark .input--overridden {
+  background: #2a2310 !important;
+}
+
+.macro-reset-btn {
+  font-size: 13px;
+  line-height: 1;
+  color: #92400e;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+.macro-reset-btn:hover { opacity: 1; }
+
+html.dark .macro-reset-btn { color: #fcd34d; }
+
+/* Scale prompt */
+.macro-scale-prompt {
+  margin-top: var(--space-xs);
+  margin-left: calc(36px + var(--space-sm));
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  padding: 8px 12px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: var(--radius-sm);
+  border-left: 3px solid #f59e0b;
+}
+
+html.dark .macro-scale-prompt {
+  background: #2a2310;
+  border-color: #78350f;
+}
+
+.macro-scale-text {
+  font-size: 12px;
+  color: #92400e;
+  flex: 1;
+  min-width: 160px;
+}
+html.dark .macro-scale-text { color: #fcd34d; }
+
+.macro-scale-btns {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.macro-scale-apply {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: #f59e0b;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.macro-scale-apply:hover { background: #d97706; }
+
+.macro-scale-dismiss {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.macro-scale-dismiss:hover { background: var(--color-surface); }
 
 
 /* ============================================================

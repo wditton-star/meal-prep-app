@@ -934,6 +934,7 @@ const state = {
   userLocation:        null,
   nearbyStores:        null,
   nearbyStoresLoading: false,
+  pendingMacroScale:   null,  // { memberId, phase, field, scale }
 };
 
 // Transient state for the calculator modal (not persisted between opens)
@@ -1025,6 +1026,7 @@ function renderMacroTargets() {
   container.innerHTML = MEMBERS.map(member => {
     const currentPhase = state.memberPhases[member.id];
     const macros       = state.memberMacros[member.id][currentPhase];
+    const calculated   = getCalculatedMacros(member.id, currentPhase);
 
     const phaseBtns = PHASES.map(p => {
       const isActive = currentPhase === p.id;
@@ -1034,13 +1036,35 @@ function renderMacroTargets() {
       >${p.label}</button>`;
     }).join('');
 
-    const macroFields = FIELDS.map(f => `
-      <div class="macro-field">
-        <label>${f.label}</label>
-        <input type="number" value="${macros[f.key]}"
-          onchange="saveMacroOverride('${member.id}', '${f.key}', this.value)" />
+    const macroFields = FIELDS.map(f => {
+      const isOverridden = macros[f.key] !== calculated[f.key];
+      return `
+        <div class="macro-field${isOverridden ? ' macro-field--overridden' : ''}">
+          <label>${f.label}${isOverridden ? '<span class="override-dot" title="Manually set"></span>' : ''}</label>
+          <div class="macro-input-wrap">
+            <input type="number" value="${macros[f.key]}"
+              class="${isOverridden ? 'input--overridden' : ''}"
+              onchange="saveMacroOverride('${member.id}', '${f.key}', this.value)" />
+            ${isOverridden ? `<button class="macro-reset-btn" onclick="resetMacroField('${member.id}', '${f.key}')" title="Reset to calculated">↺</button>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    const pending = state.pendingMacroScale;
+    const showPrompt = pending && pending.memberId === member.id && pending.phase === currentPhase;
+    const changedLabel = showPrompt ? FIELDS.find(f => f.key !== pending.field && f.key !== 'cal') : null;
+    const scalePrompt = showPrompt ? `
+      <div class="macro-scale-prompt">
+        <span class="macro-scale-text">
+          Scale Protein, Carbs &amp; Fat by ×${pending.scale.toFixed(2)}?
+        </span>
+        <div class="macro-scale-btns">
+          <button class="macro-scale-apply" onclick="applyMacroScale()">Apply</button>
+          <button class="macro-scale-dismiss" onclick="dismissMacroScale()">Dismiss</button>
+        </div>
       </div>
-    `).join('');
+    ` : '';
 
     return `
       <div class="member-row">
@@ -1050,6 +1074,7 @@ function renderMacroTargets() {
           <div class="phase-toggle">${phaseBtns}</div>
         </div>
         <div class="macro-inputs">${macroFields}</div>
+        ${scalePrompt}
       </div>
     `;
   }).join('');
@@ -1080,9 +1105,51 @@ function setMemberPhase(memberId, phase) {
   renderAll();
 }
 
+function getCalculatedMacros(memberId, phase) {
+  const member = MEMBERS.find(m => m.id === memberId);
+  const phaseObj = PHASES.find(p => p.id === phase);
+  return scalePhase(member.maintenance, phaseObj.factor);
+}
+
 function saveMacroOverride(memberId, field, value) {
   const phase = state.memberPhases[memberId];
-  state.memberMacros[memberId][phase][field] = Math.round(parseFloat(value)) || 0;
+  const oldVal = state.memberMacros[memberId][phase][field];
+  const newVal = Math.round(parseFloat(value)) || 0;
+  state.memberMacros[memberId][phase][field] = newVal;
+  saveMemberMacros();
+
+  if (oldVal > 0 && newVal > 0 && newVal !== oldVal) {
+    state.pendingMacroScale = { memberId, phase, field, scale: newVal / oldVal };
+  } else {
+    state.pendingMacroScale = null;
+  }
+  renderAll();
+}
+
+function applyMacroScale() {
+  const p = state.pendingMacroScale;
+  if (!p) return;
+  const macros = state.memberMacros[p.memberId][p.phase];
+  ['cal', 'protein', 'carbs', 'fat'].forEach(f => {
+    if (f !== p.field) macros[f] = Math.round(macros[f] * p.scale);
+  });
+  state.pendingMacroScale = null;
+  saveMemberMacros();
+  renderAll();
+}
+
+function dismissMacroScale() {
+  state.pendingMacroScale = null;
+  renderMacroTargets();
+}
+
+function resetMacroField(memberId, field) {
+  const phase = state.memberPhases[memberId];
+  const calc = getCalculatedMacros(memberId, phase);
+  state.memberMacros[memberId][phase][field] = calc[field];
+  if (state.pendingMacroScale?.memberId === memberId && state.pendingMacroScale?.field === field) {
+    state.pendingMacroScale = null;
+  }
   saveMemberMacros();
   renderAll();
 }

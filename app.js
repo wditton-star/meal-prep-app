@@ -2086,40 +2086,44 @@ function renderStoreSelectorModal() {
   const loading  = state.nearbyStoresLoading;
   const nearby   = state.nearbyStores;
 
-  grid.innerHTML = STORE_CHAINS.map(chain => {
+  // While loading, show a single skeleton list (not a grid)
+  if (loading) {
+    grid.innerHTML = `
+      <div class="store-search-loading">
+        <div class="store-search-spinner"></div>
+        Searching for stores near you…
+      </div>
+    `;
+    return;
+  }
+
+  // Split into found nearby vs not found
+  const foundChains    = STORE_CHAINS.filter(c => nearby?.[c.id]);
+  const notFoundChains = STORE_CHAINS.filter(c => nearby && !nearby[c.id]);
+  const allChains      = nearby ? [...foundChains, ...notFoundChains] : STORE_CHAINS;
+
+  const renderFound = (chain) => {
     const isSelected = selected?.id === chain.id;
-    const found      = nearby?.[chain.id];
-    const mapsUrl    = loc
-      ? `https://www.google.com/maps/search/${chain.mapQ}/@${loc.lat},${loc.lng},13z`
-      : `https://www.google.com/maps/search/${chain.mapQ}`;
-
-    // Auto-detected branch: show distance + address, one tap to select
-    if (found) {
-      return `
-        <div class="store-chain-card${isSelected ? ' store-chain-card--selected' : ''}"
-             onclick="selectStore('${chain.id}')">
-          ${isSelected ? '<div class="store-chain-check">✓</div>' : ''}
-          <div class="store-chain-name">${chain.name}</div>
-          <div class="store-chain-distance">${found.distanceMi.toFixed(1)} mi away</div>
-          ${found.address ? `<div class="store-chain-address">${found.address}</div>` : ''}
-        </div>
-      `;
-    }
-
-    // Loading skeleton
-    if (loading) {
-      return `
-        <div class="store-chain-card">
-          <div class="store-chain-name">${chain.name}</div>
-          <div class="store-chain-loading">Searching nearby…</div>
-        </div>
-      `;
-    }
-
-    // Fallback: manual address input + Maps link
-    const savedAddress = isSelected ? (selected.address || '') : '';
+    const found      = nearby[chain.id];
     return `
       <div class="store-chain-card${isSelected ? ' store-chain-card--selected' : ''}"
+           onclick="selectStore('${chain.id}')">
+        ${isSelected ? '<div class="store-chain-check">✓</div>' : ''}
+        <div class="store-chain-name">${chain.name}</div>
+        <div class="store-chain-distance">${found.distanceMi.toFixed(1)} mi away</div>
+        ${found.address ? `<div class="store-chain-address">${found.address}</div>` : ''}
+      </div>
+    `;
+  };
+
+  const renderFallback = (chain) => {
+    const isSelected   = selected?.id === chain.id;
+    const savedAddress = isSelected ? (selected.address || '') : '';
+    const mapsUrl      = loc
+      ? `https://www.google.com/maps/search/${chain.mapQ}/@${loc.lat},${loc.lng},13z`
+      : `https://www.google.com/maps/search/${chain.mapQ}`;
+    return `
+      <div class="store-chain-card store-chain-card--dim${isSelected ? ' store-chain-card--selected' : ''}"
            onclick="selectStore('${chain.id}')">
         ${isSelected ? '<div class="store-chain-check">✓</div>' : ''}
         <div class="store-chain-name">${chain.name}</div>
@@ -2136,12 +2140,27 @@ function renderStoreSelectorModal() {
            href="${mapsUrl}"
            target="_blank"
            rel="noopener noreferrer"
-           onclick="event.stopPropagation()">
-          📍 ${loc ? 'Find near me' : 'Search on Maps'}
-        </a>
+           onclick="event.stopPropagation()">📍 ${loc ? 'Find near me' : 'Search on Maps'}</a>
       </div>
     `;
-  }).join('');
+  };
+
+  // Build sections
+  let html = '';
+
+  if (foundChains.length) {
+    html += foundChains.map(renderFound).join('');
+  }
+
+  if (notFoundChains.length && foundChains.length) {
+    html += `<div class="store-section-divider">Not found within 10 mi</div>`;
+    html += notFoundChains.map(renderFallback).join('');
+  } else if (!nearby) {
+    // No location yet — show all chains with fallback cards
+    html += allChains.map(renderFallback).join('');
+  }
+
+  grid.innerHTML = html;
 }
 
 function renderStoreBanner() {

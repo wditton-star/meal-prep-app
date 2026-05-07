@@ -1371,6 +1371,55 @@ html.dark .store-api-error {
   margin-bottom: 5px;
 }
 
+/* Full-grid loading state */
+.store-search-loading {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 32px 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.store-search-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-brand);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Divider between found and not-found sections */
+.store-section-divider {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 12px 0 6px;
+  border-top: 0.5px solid var(--color-border);
+  margin-top: 4px;
+}
+
+/* Dimmed style for not-found chains */
+.store-chain-card--dim {
+  opacity: 0.55;
+}
+
+.store-chain-card--dim:hover,
+.store-chain-card--dim:focus-within {
+  opacity: 1;
+}
+
 .store-chain-loading {
   font-size: 11px;
   color: var(--color-text-muted);

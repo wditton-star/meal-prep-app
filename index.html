@@ -72,11 +72,13 @@
        STAGE NAVIGATION
        ============================================================ -->
   <nav class="stage-nav" id="stage-nav">
+    <div class="stage-nav-inner">
     <button class="nav-btn active" data-stage="0">1 · Plan</button>
     <button class="nav-btn" data-stage="1">2 · Grocery List</button>
     <button class="nav-btn" data-stage="2">3 · Shop</button>
     <button class="nav-btn" data-stage="3">4 · Prep</button>
     <button class="nav-btn" data-stage="4">5 · Store & Portion</button>
+    </div>
   </nav>
 
   <!-- Progress bar -->
@@ -130,6 +132,7 @@
           Pick recipes for the week
           <button class="browse-recipes-btn" onclick="openEtgBrowser()">Browse Eat The Gains ↗</button>
         </div>
+        <div class="recipe-filter-bar" id="recipe-filter-bar"></div>
         <div class="recipe-grid" id="recipe-grid">
           <!-- Recipe cards are injected by app.js from the RECIPES array -->
         </div>

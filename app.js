@@ -1062,7 +1062,27 @@ function saveSelectedStore(store) {
 const ALL_DAYS      = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const ALL_DAYS_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const STORAGE_KEY  = 'mealPrepCalendar';
-const PREFS_KEY    = 'preptarePrefs';
+const PREFS_KEY      = 'preptarePrefs';
+const FAVORITES_KEY  = 'preptareFavorites';
+
+function loadFavorites() {
+  try { return new Set(JSON.parse(localStorage.getItem(FAVORITES_KEY)) || []); }
+  catch (_) { return new Set(); }
+}
+function saveFavorites() {
+  localStorage.setItem(FAVORITES_KEY, JSON.stringify([...state.favoriteRecipes]));
+}
+function toggleFavorite(recipeId, event) {
+  event.stopPropagation();
+  if (state.favoriteRecipes.has(recipeId)) state.favoriteRecipes.delete(recipeId);
+  else state.favoriteRecipes.add(recipeId);
+  saveFavorites();
+  renderRecipes();
+}
+function setRecipeFilter(filter) {
+  state.recipeFilter = filter;
+  renderRecipes();
+}
 
 function loadPrefs() {
   try {
@@ -1132,6 +1152,8 @@ const state = {
   pendingRemoveMember:   null,
   groceryPrices:         loadGroceryPrices(),
   editingPriceKey:       null,
+  favoriteRecipes:       loadFavorites(),
+  recipeFilter:          'all',
 };
 
 // Transient state for the calculator modal (not persisted between opens)
@@ -1586,17 +1608,49 @@ function renderRecipes() {
   const grid = document.getElementById('recipe-grid');
   if (!grid) return;
 
-  grid.innerHTML = RECIPES.map((recipe, i) => {
-    const armed = state.armedRecipeId === recipe.id;
+  // Filter bar
+  const filterBar = document.getElementById('recipe-filter-bar');
+  if (filterBar) {
+    filterBar.innerHTML = `
+      <button class="recipe-filter-btn${state.recipeFilter === 'all' ? ' active' : ''}" onclick="setRecipeFilter('all')">All</button>
+      <button class="recipe-filter-btn${state.recipeFilter === 'favorites' ? ' active' : ''}" onclick="setRecipeFilter('favorites')">★ Favorites</button>
+    `;
+  }
+
+  let recipes = RECIPES.map((recipe, i) => ({ recipe, i }));
+
+  // Sort: favorites first
+  recipes.sort((a, b) => {
+    const af = state.favoriteRecipes.has(a.recipe.id) ? 0 : 1;
+    const bf = state.favoriteRecipes.has(b.recipe.id) ? 0 : 1;
+    return af - bf;
+  });
+
+  // Filter
+  if (state.recipeFilter === 'favorites') {
+    recipes = recipes.filter(({ recipe }) => state.favoriteRecipes.has(recipe.id));
+  }
+
+  if (recipes.length === 0 && state.recipeFilter === 'favorites') {
+    grid.innerHTML = `<div class="recipe-favorites-empty">No favorites yet — tap ★ on any recipe to save it here.</div>`;
+    return;
+  }
+
+  grid.innerHTML = recipes.map(({ recipe, i }) => {
+    const armed    = state.armedRecipeId === recipe.id;
+    const starred  = state.favoriteRecipes.has(recipe.id);
     return `
       <div
-        class="recipe-card${armed ? ' armed' : ''}"
+        class="recipe-card${armed ? ' armed' : ''}${starred ? ' favorited' : ''}"
         data-recipe-index="${i}"
         onclick="armRecipe('${recipe.id}')"
       >
         <div class="recipe-card-top">
           <div class="recipe-name">${recipe.name}</div>
-          <button class="recipe-remove-btn" onclick="removeRecipe(${i}, event)" title="Remove recipe" aria-label="Remove recipe">✕</button>
+          <div class="recipe-card-actions">
+            <button class="recipe-star-btn${starred ? ' starred' : ''}" onclick="toggleFavorite('${recipe.id}', event)" title="${starred ? 'Remove from favorites' : 'Add to favorites'}" aria-label="${starred ? 'Remove from favorites' : 'Add to favorites'}">★</button>
+            <button class="recipe-remove-btn" onclick="removeRecipe(${i}, event)" title="Remove recipe" aria-label="Remove recipe">✕</button>
+          </div>
         </div>
         <div class="macro-badges">
           <span class="badge badge-protein">${recipe.protein}g protein</span>

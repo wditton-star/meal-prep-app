@@ -270,19 +270,21 @@ html.dark .icon-moon { display: none; }
    4. NAVIGATION
    ============================================================ */
 .stage-nav {
-  display: flex;
-  gap: var(--space-xs);
-  padding: var(--space-md) var(--space-lg);
   overflow-x: auto;
   background: var(--color-surface);
-  max-width: 100%;
-  /* Hide scrollbar on webkit */
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
 
-.stage-nav::-webkit-scrollbar {
-  display: none;
+.stage-nav::-webkit-scrollbar { display: none; }
+
+.stage-nav-inner {
+  display: flex;
+  gap: var(--space-xs);
+  padding: var(--space-md) var(--space-lg);
+  max-width: 860px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .nav-btn {
@@ -884,6 +886,13 @@ html.dark .macro-phase-chip {
   line-height: 1.3;
 }
 
+.recipe-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
 .recipe-remove-btn {
   background: transparent;
   border: none;
@@ -903,6 +912,79 @@ html.dark .macro-phase-chip {
 
 .recipe-remove-btn:hover {
   color: #e05555;
+}
+
+/* Recipe filter bar */
+.recipe-filter-bar {
+  display: flex;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+}
+
+.recipe-filter-btn {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.recipe-filter-btn:hover { border-color: var(--color-brand); color: var(--color-brand); }
+.recipe-filter-btn.active {
+  background: var(--color-brand);
+  border-color: var(--color-brand);
+  color: #fff;
+}
+
+/* Star favorite button */
+.recipe-star-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 3px;
+  flex-shrink: 0;
+  opacity: 0.3;
+  transition: opacity 0.15s, transform 0.15s;
+  color: #f59e0b;
+}
+.recipe-card:hover .recipe-star-btn { opacity: 0.6; }
+.recipe-star-btn.starred {
+  opacity: 1;
+  transform: scale(1.1);
+}
+.recipe-star-btn.starred:hover { transform: scale(1.2); }
+
+/* Favorited card treatment */
+.recipe-card.favorited {
+  border-top: 2px solid #f59e0b;
+  background: linear-gradient(160deg, #fffbeb 0%, var(--color-surface) 60%);
+}
+html.dark .recipe-card.favorited {
+  background: linear-gradient(160deg, #2a1f06 0%, var(--color-surface) 60%);
+}
+
+/* Empty favorites state */
+.recipe-favorites-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: var(--space-lg) var(--space-md);
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.recipe-favorites-empty .empty-star {
+  font-size: 24px;
+  display: block;
+  margin-bottom: var(--space-xs);
+  opacity: 0.4;
 }
 
 /* Macro badge row inside each recipe card */

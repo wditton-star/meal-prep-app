@@ -529,6 +529,73 @@ html.dark .icon-moon { display: none; }
   min-width: 60px;
 }
 
+/* Member exclusion */
+.member-row--excluded {
+  opacity: 0.5;
+}
+
+.avatar--excluded {
+  filter: grayscale(1);
+}
+
+.member-excluded-badge {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.member-reinclude-btn {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-brand);
+  background: none;
+  color: var(--color-brand);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+.member-reinclude-btn:hover {
+  background: var(--color-brand);
+  color: #fff;
+}
+
+.member-exclude-btn {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  opacity: 0.4;
+  transition: opacity 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.member-exclude-btn:hover {
+  opacity: 1;
+  color: #ef4444;
+}
+
+.macro-scale-apply--red {
+  background: #ef4444 !important;
+}
+.macro-scale-apply--red:hover {
+  background: #dc2626 !important;
+}
+
+.chip-avatar--excluded {
+  opacity: 0.25;
+  filter: grayscale(1);
+  cursor: default;
+}
+
 /* Phase toggle: Deficit / Maintain / Bulk */
 .phase-toggle {
   display: flex;

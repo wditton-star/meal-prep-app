@@ -62,8 +62,10 @@ function scalePhase(maintenance, factor) {
 }
 
 function getFamilyScaleFactor() {
-  const base = MEMBERS.reduce((s, m) => s + m.maintenance.cal, 0);
-  const current = MEMBERS.reduce((s, m) => {
+  const included = MEMBERS.filter(m => !isExcluded(m.id));
+  if (!included.length) return 0;
+  const base    = included.reduce((s, m) => s + m.maintenance.cal, 0);
+  const current = included.reduce((s, m) => {
     const phase = state.memberPhases[m.id] || 'maintenance';
     return s + (state.memberMacros[m.id]?.[phase]?.cal || m.maintenance.cal);
   }, 0);
@@ -329,6 +331,17 @@ function loadMemberMacros() {
 
 function saveMemberMacros() {
   localStorage.setItem('prepFlowMemberMacros', JSON.stringify(state.memberMacros));
+}
+
+function loadExcludedMembers() {
+  try { return JSON.parse(localStorage.getItem('prepFlowExcluded')) || []; }
+  catch (_) { return []; }
+}
+function saveExcludedMembers() {
+  localStorage.setItem('prepFlowExcluded', JSON.stringify(state.excludedMembers));
+}
+function isExcluded(memberId) {
+  return state.excludedMembers.includes(memberId);
 }
 
 const ACTIVITY_LEVELS = [
@@ -936,6 +949,8 @@ const state = {
   nearbyStoresLoading: false,
   pendingMacroScale:     null,  // { memberId, phase, field, scale }
   pendingPhasePropagate: null,  // { memberId, currentPhase, scale, targetPhases: ['deficit', ...] }
+  excludedMembers:       loadExcludedMembers(),
+  pendingExclusion:      null,
 };
 
 // Transient state for the calculator modal (not persisted between opens)
@@ -1025,6 +1040,7 @@ function renderMacroTargets() {
   ];
 
   container.innerHTML = MEMBERS.map(member => {
+    const excluded     = isExcluded(member.id);
     const currentPhase = state.memberPhases[member.id];
     const macros       = state.memberMacros[member.id][currentPhase];
     const calculated   = getCalculatedMacros(member.id, currentPhase);
@@ -1034,6 +1050,7 @@ function renderMacroTargets() {
       return `<button
         class="phase-btn${isActive ? ' phase-active phase-active--' + p.id : ''}"
         onclick="setMemberPhase('${member.id}', '${p.id}')"
+        ${excluded ? 'disabled' : ''}
       >${p.label}</button>`;
     }).join('');
 
@@ -1046,13 +1063,14 @@ function renderMacroTargets() {
           <label>${f.label}${isOverridden ? '<span class="override-dot" title="Manually set"></span>' : ''}</label>
           <input type="number" value="${macros[f.key]}"
             class="${isOverridden ? 'input--overridden' : ''}"
-            onchange="saveMacroOverride('${member.id}', '${f.key}', this.value)" />
+            onchange="saveMacroOverride('${member.id}', '${f.key}', this.value)"
+            ${excluded ? 'disabled' : ''} />
         </div>
       `;
     }).join('');
 
     const pending = state.pendingMacroScale;
-    const showPrompt = pending && pending.memberId === member.id && pending.phase === currentPhase;
+    const showPrompt = !excluded && pending && pending.memberId === member.id && pending.phase === currentPhase;
     const scalePrompt = showPrompt ? `
       <div class="macro-scale-prompt">
         <span class="macro-scale-text">
@@ -1066,7 +1084,7 @@ function renderMacroTargets() {
     ` : '';
 
     const propagate = state.pendingPhasePropagate;
-    const showPropagate = propagate && propagate.memberId === member.id;
+    const showPropagate = !excluded && propagate && propagate.memberId === member.id;
     const propagatePrompt = showPropagate ? `
       <div class="macro-scale-prompt macro-propagate-prompt">
         <span class="macro-scale-text">Apply ×${propagate.scale.toFixed(2)} to other phases?</span>
@@ -1084,17 +1102,38 @@ function renderMacroTargets() {
       </div>
     ` : '';
 
+    const showExcludeConfirm = state.pendingExclusion === member.id;
+    const excludePrompt = showExcludeConfirm ? `
+      <div class="macro-scale-prompt member-exclude-prompt">
+        <span class="macro-scale-text">
+          <strong>${member.name}</strong> will be removed from the grocery list, prep steps, and portions for this week. Continue?
+        </span>
+        <div class="macro-scale-btns">
+          <button class="macro-scale-apply macro-scale-apply--red" onclick="confirmExclusion('${member.id}')">Exclude</button>
+          <button class="macro-scale-dismiss" onclick="cancelExclusion()">Cancel</button>
+        </div>
+      </div>
+    ` : '';
+
     return `
-      <div class="member-row">
+      <div class="member-row${excluded ? ' member-row--excluded' : ''}">
         <div class="member-row-top">
-          <div class="avatar ${member.avatarClass}">${member.initials}</div>
+          <div class="avatar ${member.avatarClass}${excluded ? ' avatar--excluded' : ''}">${member.initials}</div>
           <span class="member-name">${member.name}</span>
-          <div class="phase-toggle">${phaseBtns}</div>
+          ${excluded
+            ? `<span class="member-excluded-badge">Excluded this week</span>
+               <button class="member-reinclude-btn" onclick="toggleMemberExclusion('${member.id}')">Re-include</button>`
+            : `<div class="phase-toggle">${phaseBtns}</div>
+               <button class="member-exclude-btn" onclick="toggleMemberExclusion('${member.id}')" title="Exclude from this week">✕</button>`
+          }
         </div>
-        <div class="macro-inputs">
-          ${macroFields}
-          ${anyOverridden ? `<button class="macro-reset-all-btn" onclick="resetAllMacros('${member.id}')" title="Reset all to calculated">↺</button>` : ''}
-        </div>
+        ${excluded ? '' : `
+          <div class="macro-inputs">
+            ${macroFields}
+            ${anyOverridden ? `<button class="macro-reset-all-btn" onclick="resetAllMacros('${member.id}')" title="Reset all to calculated">↺</button>` : ''}
+          </div>
+        `}
+        ${excludePrompt}
         ${scalePrompt}
         ${propagatePrompt}
       </div>
@@ -1205,6 +1244,30 @@ function resetAllMacros(memberId) {
   renderAll();
 }
 
+function toggleMemberExclusion(memberId) {
+  if (isExcluded(memberId)) {
+    state.excludedMembers = state.excludedMembers.filter(id => id !== memberId);
+    state.pendingExclusion = null;
+    saveExcludedMembers();
+    renderAll();
+  } else {
+    state.pendingExclusion = memberId;
+    renderMacroTargets();
+  }
+}
+
+function confirmExclusion(memberId) {
+  if (!state.excludedMembers.includes(memberId)) state.excludedMembers.push(memberId);
+  state.pendingExclusion = null;
+  saveExcludedMembers();
+  renderAll();
+}
+
+function cancelExclusion() {
+  state.pendingExclusion = null;
+  renderMacroTargets();
+}
+
 /**
  * Stage 1 — Recipe picker cards.
  */
@@ -1313,10 +1376,12 @@ function renderMealCalendar() {
       const recipe = [...RECIPES, ...ETG_RECIPES].find(r => r.id === recipeId);
       const label = recipe ? recipe.name : recipeId;
       const avatarBadges = MEMBERS.map(m => {
-        const active = members.includes(m.id);
-        return `<button class="chip-avatar${active ? ' chip-avatar--on' : ''} ${m.avatarClass}"
+        const active   = members.includes(m.id);
+        const excluded = isExcluded(m.id);
+        return `<button class="chip-avatar${active ? ' chip-avatar--on' : ''} ${m.avatarClass}${excluded ? ' chip-avatar--excluded' : ''}"
           onclick="toggleMealMember(event,${state.weekOffset},${dayIdx},${mealIdx},'${m.id}')"
-          title="${m.name}">${m.initials}</button>`;
+          title="${m.name}${excluded ? ' (excluded this week)' : ''}"
+          ${excluded ? 'disabled' : ''}>${m.initials}</button>`;
       }).join('');
       return `
         <div class="meal-chip"
@@ -1649,8 +1714,8 @@ function renderPortionTable() {
     // Section header row for this recipe
     rows.push(`<tr class="portion-recipe-header"><td colspan="5">${recipe.name}</td></tr>`);
 
-    // Collect all unique members across all instances of this recipe
-    const memberIds = [...new Set(instances.flatMap(inst => inst.members))];
+    // Collect all unique non-excluded members across all instances of this recipe
+    const memberIds = [...new Set(instances.flatMap(inst => inst.members))].filter(id => !isExcluded(id));
 
     for (const mid of memberIds) {
       const m = MEMBERS.find(x => x.id === mid);

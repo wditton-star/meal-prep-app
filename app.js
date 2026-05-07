@@ -105,6 +105,159 @@ function fmtIngQty(amount, unit) {
   return unit ? `${display} ${unit}` : display;
 }
 
+// ── Grocery pricing ─────────────────────────────────────────────
+
+// BLS APU series with reliable national monthly data
+const BLS_SERIES = [
+  { id: 'APU0000708111', priceUnit: 'doz',  patterns: [/\beggs?\b/i] },
+  { id: 'APU0000709111', priceUnit: 'gal',  patterns: [/\bmilk\b/i] },
+  { id: 'APU0000712112', priceUnit: 'lb',   patterns: [/\brice\b/i, /jasmine rice/i] },
+  { id: 'APU0000703112', priceUnit: 'lb',   patterns: [/ground beef/i, /ground turkey/i] },
+];
+
+// Realistic 2025 national average estimates for items BLS doesn't cover
+const PRICE_ESTIMATES = [
+  { patterns: [/chicken breast/i],           pricePerUnit: 4.99, priceUnit: 'lb'      },
+  { patterns: [/ground turkey/i],            pricePerUnit: 5.49, priceUnit: 'lb'      },
+  { patterns: [/ground beef/i],              pricePerUnit: 5.99, priceUnit: 'lb'      },
+  { patterns: [/salmon/i],                   pricePerUnit: 9.99, priceUnit: 'lb'      },
+  { patterns: [/shrimp/i],                   pricePerUnit: 8.99, priceUnit: 'lb'      },
+  { patterns: [/\bsteak\b/i],               pricePerUnit: 12.99, priceUnit: 'lb'     },
+  { patterns: [/\beggs?\b/i],               pricePerUnit: 4.99,  priceUnit: 'doz'    },
+  { patterns: [/\bmilk\b/i],               pricePerUnit: 3.99,  priceUnit: 'gal'    },
+  { patterns: [/jasmine rice|\brice\b/i],   pricePerUnit: 1.49,  priceUnit: 'lb'     },
+  { patterns: [/rice noodle/i],             pricePerUnit: 2.99,  priceUnit: 'pack'   },
+  { patterns: [/rolled oat|\boats?\b/i],    pricePerUnit: 0.10,  priceUnit: 'oz'     },
+  { patterns: [/greek yogurt/i],            pricePerUnit: 6.99,  priceUnit: 'ct'     },
+  { patterns: [/broccoli/i],               pricePerUnit: 1.99,  priceUnit: 'lb'     },
+  { patterns: [/bell pepper/i],            pricePerUnit: 1.29,  priceUnit: 'ct'     },
+  { patterns: [/baby spinach|spinach/i],   pricePerUnit: 0.31,  priceUnit: 'oz'     },
+  { patterns: [/snap pea/i],              pricePerUnit: 3.99,  priceUnit: 'lb'     },
+  { patterns: [/\bgarlic\b/i],            pricePerUnit: 0.99,  priceUnit: 'ct'     },
+  { patterns: [/soy sauce/i],             pricePerUnit: 3.49,  priceUnit: 'ct'     },
+  { patterns: [/olive oil/i],             pricePerUnit: 9.99,  priceUnit: 'ct'     },
+  { patterns: [/chicken broth|\bbroth\b/i], pricePerUnit: 2.49, priceUnit: 'ct'     },
+  { patterns: [/quinoa/i],               pricePerUnit: 5.99,  priceUnit: 'lb'     },
+  { patterns: [/sweet potato/i],         pricePerUnit: 1.29,  priceUnit: 'lb'     },
+  { patterns: [/\bavocado/i],            pricePerUnit: 1.49,  priceUnit: 'ct'     },
+  { patterns: [/\bonion/i],              pricePerUnit: 0.99,  priceUnit: 'lb'     },
+  { patterns: [/\btomato/i],             pricePerUnit: 1.99,  priceUnit: 'lb'     },
+  { patterns: [/lemon/i],               pricePerUnit: 0.79,  priceUnit: 'ct'     },
+  { patterns: [/lime/i],                pricePerUnit: 0.59,  priceUnit: 'ct'     },
+  { patterns: [/\bcheese\b/i],          pricePerUnit: 0.44,  priceUnit: 'oz'     },
+  { patterns: [/\bbutter\b/i],          pricePerUnit: 5.99,  priceUnit: 'lb'     },
+  { patterns: [/coconut milk/i],        pricePerUnit: 1.99,  priceUnit: 'ct'     },
+  { patterns: [/\bbeans?\b/i],          pricePerUnit: 1.29,  priceUnit: 'ct'     },
+  { patterns: [/\btofu\b/i],            pricePerUnit: 2.99,  priceUnit: 'ct'     },
+];
+
+function normPriceKey(name) {
+  return name.toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+function loadGroceryPrices() {
+  try { return JSON.parse(localStorage.getItem('prepFlowPrices')) || {}; }
+  catch (_) { return {}; }
+}
+function saveGroceryPrices() {
+  localStorage.setItem('prepFlowPrices', JSON.stringify(state.groceryPrices));
+}
+
+// Returns { pricePerUnit, priceUnit, source } or null
+function getIngredientPrice(name) {
+  const key = normPriceKey(name);
+  // 1. User override
+  const user = state.groceryPrices[key];
+  if (user?.source === 'user') return user;
+  // 2. BLS live data (keyed as __bls_<seriesId>)
+  for (const bls of BLS_SERIES) {
+    if (bls.patterns.some(p => p.test(name))) {
+      const blsData = state.groceryPrices[`__bls_${bls.id}`];
+      if (blsData?.source === 'bls') return { ...blsData, priceUnit: bls.priceUnit };
+    }
+  }
+  // 3. Static estimate
+  const est = PRICE_ESTIMATES.find(e => e.patterns.some(p => p.test(name)));
+  if (est) return { pricePerUnit: est.pricePerUnit, priceUnit: est.priceUnit, source: 'estimate' };
+  return null;
+}
+
+// Convert purchase quantity to price unit for cost math
+function toPriceUnitQty(amount, unit, priceUnit) {
+  const u = (unit || '').toLowerCase();
+  const p = (priceUnit || '').toLowerCase();
+  if (u === p || u === p + 's' || u + 's' === p) return amount;
+  if (u === 'oz' && p === 'lb') return amount / 16;
+  if ((u === 'lbs' || u === 'lb') && p === 'oz') return amount * 16;
+  if (u === 'ct' && p === 'doz') return amount / 12;
+  if (u === 'cups' && p === 'lb') return amount * 0.44;
+  return amount; // same-unit fallback
+}
+
+function calcIngredientCost(name, amount, unit) {
+  const price = getIngredientPrice(name);
+  if (!price) return null;
+  const qty = toPriceUnitQty(amount, unit, price.priceUnit);
+  return qty * price.pricePerUnit;
+}
+
+async function fetchBlsPrices() {
+  const lastFetch = parseInt(localStorage.getItem('prepFlowBLSTime') || '0');
+  if (Date.now() - lastFetch < 48 * 3600 * 1000) return; // cached
+  try {
+    const res = await fetch('https://api.bls.gov/publicAPI/v2/timeseries/data/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ seriesid: BLS_SERIES.map(s => s.id), latest: true }),
+    });
+    if (!res.ok) throw new Error(`BLS ${res.status}`);
+    const json = await res.json();
+    if (json.status !== 'REQUEST_SUCCEEDED') throw new Error('BLS failed');
+    for (const series of (json.Results?.series || [])) {
+      const latest = series.data?.[0];
+      if (!latest?.value) continue;
+      const price = parseFloat(latest.value);
+      if (isNaN(price)) continue;
+      state.groceryPrices[`__bls_${series.seriesID}`] = {
+        pricePerUnit: price, source: 'bls', updatedAt: Date.now(),
+      };
+    }
+    localStorage.setItem('prepFlowBLSTime', Date.now().toString());
+    saveGroceryPrices();
+    renderGroceryList();
+  } catch (err) {
+    console.warn('[PrepFlow] BLS fetch skipped:', err.message);
+  }
+}
+
+function startEditPrice(key) {
+  state.editingPriceKey = key;
+  renderGroceryList();
+  // Auto-focus the input after render
+  requestAnimationFrame(() => {
+    const input = document.getElementById('price-edit-input');
+    if (input) { input.focus(); input.select(); }
+  });
+}
+
+function saveUserPrice(name, unit, value) {
+  const price = parseFloat(value);
+  if (isNaN(price) || price < 0) { cancelEditPrice(); return; }
+  const key = normPriceKey(name);
+  const priceUnit = unit;
+  state.groceryPrices[key] = { pricePerUnit: price, priceUnit, source: 'user', updatedAt: Date.now() };
+  state.editingPriceKey = null;
+  saveGroceryPrices();
+  renderGroceryList();
+}
+
+function cancelEditPrice() {
+  state.editingPriceKey = null;
+  renderGroceryList();
+}
+
+// ── End grocery pricing ──────────────────────────────────────────
+
 function buildWeekPlan() {
   const days = getMealsForWeek(state.weekOffset);
   const recipeMap = {};     // recipeId → { recipe, instances[], totalScale }
@@ -952,6 +1105,8 @@ const state = {
   pendingPhasePropagate: null,  // { memberId, currentPhase, scale, targetPhases: ['deficit', ...] }
   excludedMembers:       loadExcludedMembers(),
   pendingExclusion:      null,
+  groceryPrices:         loadGroceryPrices(),
+  editingPriceKey:       null,
 };
 
 // Transient state for the calculator modal (not persisted between opens)
@@ -967,6 +1122,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderMealCalendar();
   setupNavigation();
   updateProgress();
+  fetchBlsPrices(); // fire-and-forget; updates grocery list when data arrives
 
   document.getElementById('theme-toggle').addEventListener('click', () => {
     const isDark = document.documentElement.classList.toggle('dark');
@@ -1513,6 +1669,23 @@ function renderGroceryList() {
 
   const checkSvg = `<svg class="check-icon" viewBox="0 0 11 11" fill="none"><polyline points="1.5,5.5 4.5,8.5 9.5,2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
+  // Compute estimated total for the metric card
+  let estimatedTotal = 0;
+  let totalKnown = 0;
+  for (const ing of plan.ingredients) {
+    const cost = calcIngredientCost(ing.name, ing.amount, ing.unit);
+    if (cost != null) { estimatedTotal += cost; totalKnown++; }
+  }
+  const estEl = document.getElementById('est-cost');
+  if (estEl) {
+    estEl.textContent = totalKnown > 0 ? `$${estimatedTotal.toFixed(0)}` : '—';
+    estEl.title = totalKnown < plan.ingredients.length
+      ? `Based on ${totalKnown} of ${plan.ingredients.length} items — tap any price to set missing ones`
+      : 'Tap any price to update';
+  }
+
+  const SOURCE_DOT = { bls: 'price-dot--bls', user: 'price-dot--user', estimate: 'price-dot--estimate' };
+
   container.innerHTML = sortedCats.map(cat => {
     const items = grouped[cat];
     const catMeta = INGREDIENT_CATS.find(c => c.label === cat);
@@ -1525,6 +1698,31 @@ function renderGroceryList() {
           const recipeTags = ing.fromRecipes.length > 1
             ? `<span class="ing-sources">${ing.fromRecipes.length} recipes</span>`
             : `<span class="ing-sources">${ing.fromRecipes[0]}</span>`;
+
+          const isEditing = state.editingPriceKey === key;
+          const priceData = getIngredientPrice(ing.name);
+          const cost = priceData ? calcIngredientCost(ing.name, ing.amount, ing.unit) : null;
+
+          let priceHtml;
+          if (isEditing) {
+            const currentPerUnit = priceData?.pricePerUnit ?? '';
+            const priceUnit = priceData?.priceUnit || ing.unit || 'unit';
+            priceHtml = `
+              <div class="price-edit-wrap">
+                <span class="price-edit-unit">$/${priceUnit}</span>
+                <input id="price-edit-input" class="price-edit-input" type="number"
+                  step="0.01" min="0" value="${currentPerUnit}"
+                  onkeydown="if(event.key==='Enter')saveUserPrice('${ing.name.replace(/'/g,"\\'")}','${priceUnit}',this.value);if(event.key==='Escape')cancelEditPrice();"
+                  onblur="saveUserPrice('${ing.name.replace(/'/g,"\\'")}','${priceUnit}',this.value)" />
+                <button class="price-edit-cancel" onmousedown="event.preventDefault();cancelEditPrice()">✕</button>
+              </div>`;
+          } else if (cost != null) {
+            const dot = SOURCE_DOT[priceData.source] || SOURCE_DOT.estimate;
+            priceHtml = `<button class="grocery-price" onclick="startEditPrice('${key.replace(/'/g,"\\'")}')"><span class="price-dot ${dot}"></span>$${cost.toFixed(2)}</button>`;
+          } else {
+            priceHtml = `<button class="grocery-price grocery-price--unset" onclick="startEditPrice('${key.replace(/'/g,"\\'")}')">Set price ›</button>`;
+          }
+
           return `
             <div class="grocery-item">
               <div class="grocery-check ${checked ? 'checked' : ''}"
@@ -1533,12 +1731,22 @@ function renderGroceryList() {
               <span class="grocery-name ${checked ? 'checked' : ''}">${ing.name}</span>
               ${recipeTags}
               <span class="grocery-qty">${fmtIngQty(ing.amount, ing.unit)}</span>
+              ${priceHtml}
             </div>
           `;
         }).join('')}
       </div>
     `;
   }).join('');
+
+  // Price source legend
+  container.insertAdjacentHTML('beforeend', `
+    <div class="price-legend">
+      <span class="price-dot price-dot--bls"></span>BLS avg
+      <span class="price-dot price-dot--user" style="margin-left:10px"></span>Your price
+      <span class="price-dot price-dot--estimate" style="margin-left:10px"></span>Estimate
+    </div>
+  `);
 }
 
 /**

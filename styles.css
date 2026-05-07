@@ -1374,6 +1374,86 @@ html.dark .week-nav-btn:hover {
   flex-shrink: 0;
 }
 
+/* Grocery pricing */
+.grocery-price {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.grocery-price:hover { background: var(--color-surface); }
+
+.grocery-price--unset {
+  color: var(--color-brand);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.price-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.price-dot--bls      { background: #3b82f6; }
+.price-dot--user     { background: #22c55e; }
+.price-dot--estimate { background: #9ca3af; }
+
+.price-edit-wrap {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.price-edit-unit {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+.price-edit-input {
+  width: 64px;
+  padding: 3px 6px;
+  font-size: 13px;
+  border: 1px solid var(--color-brand);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text);
+  text-align: right;
+}
+.price-edit-input:focus { outline: none; }
+.price-edit-cancel {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  line-height: 1;
+}
+
+.price-legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: var(--space-sm) var(--space-sm) var(--space-xs);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  border-top: 0.5px solid var(--color-border);
+  margin-top: var(--space-sm);
+}
+
 
 /* ============================================================
    13. STORE LAYOUT

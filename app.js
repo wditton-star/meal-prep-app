@@ -53,13 +53,13 @@ const AVATAR_COLORS = [
 
 function loadMembers() {
   try {
-    const raw = localStorage.getItem('prepFlowMembers');
+    const raw = localStorage.getItem('prepTareMembers');
     if (raw) return JSON.parse(raw);
   } catch (_) {}
   return MEMBER_DEFAULTS.map(m => ({ ...m, maintenance: { ...m.maintenance } }));
 }
 function saveMembers() {
-  localStorage.setItem('prepFlowMembers', JSON.stringify(MEMBERS));
+  localStorage.setItem('prepTareMembers', JSON.stringify(MEMBERS));
 }
 function generateInitials(name) {
   const parts = name.trim().split(/\s+/);
@@ -179,11 +179,11 @@ function normPriceKey(name) {
 }
 
 function loadGroceryPrices() {
-  try { return JSON.parse(localStorage.getItem('prepFlowPrices')) || {}; }
+  try { return JSON.parse(localStorage.getItem('prepTarePrices')) || {}; }
   catch (_) { return {}; }
 }
 function saveGroceryPrices() {
-  localStorage.setItem('prepFlowPrices', JSON.stringify(state.groceryPrices));
+  localStorage.setItem('prepTarePrices', JSON.stringify(state.groceryPrices));
 }
 
 // Returns { pricePerUnit, priceUnit, source } or null
@@ -225,7 +225,7 @@ function calcIngredientCost(name, amount, unit) {
 }
 
 async function fetchBlsPrices() {
-  const lastFetch = parseInt(localStorage.getItem('prepFlowBLSTime') || '0');
+  const lastFetch = parseInt(localStorage.getItem('prepTareBLSTime') || '0');
   if (Date.now() - lastFetch < 48 * 3600 * 1000) return; // cached
   try {
     const res = await fetch('https://api.bls.gov/publicAPI/v2/timeseries/data/', {
@@ -245,11 +245,11 @@ async function fetchBlsPrices() {
         pricePerUnit: price, source: 'bls', updatedAt: Date.now(),
       };
     }
-    localStorage.setItem('prepFlowBLSTime', Date.now().toString());
+    localStorage.setItem('prepTareBLSTime', Date.now().toString());
     saveGroceryPrices();
     renderGroceryList();
   } catch (err) {
-    console.warn('[PrepFlow] BLS fetch skipped:', err.message);
+    console.warn('[PrepTare] BLS fetch skipped:', err.message);
   }
 }
 
@@ -485,19 +485,19 @@ function fmtScaled(base, unit, scale) {
 
 function loadMemberPhases() {
   try {
-    const raw = localStorage.getItem('prepFlowMemberPhases');
+    const raw = localStorage.getItem('prepTareMemberPhases');
     if (raw) return JSON.parse(raw);
   } catch (_) {}
   return Object.fromEntries(MEMBERS.map(m => [m.id, 'maintenance']));
 }
 
 function saveMemberPhases() {
-  localStorage.setItem('prepFlowMemberPhases', JSON.stringify(state.memberPhases));
+  localStorage.setItem('prepTareMemberPhases', JSON.stringify(state.memberPhases));
 }
 
 function loadMemberMacros() {
   try {
-    const raw = localStorage.getItem('prepFlowMemberMacros');
+    const raw = localStorage.getItem('prepTareMemberMacros');
     if (raw) return JSON.parse(raw);
   } catch (_) {}
   return Object.fromEntries(MEMBERS.map(m => [
@@ -507,15 +507,15 @@ function loadMemberMacros() {
 }
 
 function saveMemberMacros() {
-  localStorage.setItem('prepFlowMemberMacros', JSON.stringify(state.memberMacros));
+  localStorage.setItem('prepTareMemberMacros', JSON.stringify(state.memberMacros));
 }
 
 function loadExcludedMembers() {
-  try { return JSON.parse(localStorage.getItem('prepFlowExcluded')) || []; }
+  try { return JSON.parse(localStorage.getItem('prepTareExcluded')) || []; }
   catch (_) { return []; }
 }
 function saveExcludedMembers() {
-  localStorage.setItem('prepFlowExcluded', JSON.stringify(state.excludedMembers));
+  localStorage.setItem('prepTareExcluded', JSON.stringify(state.excludedMembers));
 }
 function isExcluded(memberId) {
   return state.excludedMembers.includes(memberId);
@@ -531,14 +531,14 @@ const ACTIVITY_LEVELS = [
 
 function loadCalcInputs() {
   try {
-    const raw = localStorage.getItem('prepFlowCalcInputs');
+    const raw = localStorage.getItem('prepTareCalcInputs');
     if (raw) return JSON.parse(raw);
   } catch (_) {}
   return {};
 }
 
 function saveCalcInputs() {
-  localStorage.setItem('prepFlowCalcInputs', JSON.stringify(state.calcInputs));
+  localStorage.setItem('prepTareCalcInputs', JSON.stringify(state.calcInputs));
 }
 
 /**
@@ -1028,7 +1028,7 @@ const PORTIONS = [
    of recipe id strings or null, indexed Mon–Sun.
    ============================================================ */
 // ── Grocery store chains ────────────────────────────────────────
-const STORE_KEY = 'prepflowStore';
+const STORE_KEY = 'preptareStore';
 
 const STORE_CHAINS = [
   { id: 'heb',        name: 'H-E-B',         nameMatch: /h[\-.]?e[\-.]?b/i,       mapQ: 'H-E-B+grocery',             weeklyAd: 'https://www.heb.com/weekly-ads' },
@@ -1062,7 +1062,7 @@ function saveSelectedStore(store) {
 const ALL_DAYS      = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const ALL_DAYS_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const STORAGE_KEY  = 'mealPrepCalendar';
-const PREFS_KEY    = 'prepflowPrefs';
+const PREFS_KEY    = 'preptarePrefs';
 
 function loadPrefs() {
   try {
@@ -2619,7 +2619,7 @@ async function fetchNearbyStores(lat, lng) {
 
     state.nearbyStores = nearby;
   } catch (err) {
-    console.warn('[PrepFlow] Overpass fetch failed:', err.message);
+    console.warn('[PrepTare] Overpass fetch failed:', err.message);
     state.nearbyStores = {};
   }
 

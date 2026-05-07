@@ -930,8 +930,10 @@ const state = {
   memberMacros:   loadMemberMacros(),
   calcInputs:     loadCalcInputs(),
   prefs:          loadPrefs(),
-  selectedStore: loadSelectedStore(),
-  userLocation:  null,
+  selectedStore:       loadSelectedStore(),
+  userLocation:        null,
+  nearbyStores:        null,
+  nearbyStoresLoading: false,
 };
 
 // Transient state for the calculator modal (not persisted between opens)
@@ -1978,10 +1980,12 @@ function handleStoreSelectorOverlayClick(e) {
 function selectStore(storeId) {
   const chain = STORE_CHAINS.find(s => s.id === storeId);
   if (!chain) return;
-  // Capture whatever address the user typed in this card's input field
+  // Prefer auto-detected address; fall back to whatever the user typed
+  const found     = state.nearbyStores?.[storeId];
   const addrInput = document.getElementById(`store-addr-${storeId}`);
-  const address   = addrInput?.value.trim() || null;
-  state.selectedStore = { id: chain.id, name: chain.name, weeklyAd: chain.weeklyAd, address };
+  const address   = found?.address || addrInput?.value.trim() || null;
+  const distanceMi = found?.distanceMi ?? null;
+  state.selectedStore = { id: chain.id, name: chain.name, weeklyAd: chain.weeklyAd, address, distanceMi };
   saveSelectedStore(state.selectedStore);
   closeStoreSelector();
   renderStoreBanner();
@@ -2014,9 +2018,46 @@ function fmtOsmAddress(tags) {
   return [line1, city].filter(Boolean).join(', ') || null;
 }
 
+async function fetchNearbyStores(lat, lng) {
+  state.nearbyStoresLoading = true;
+  state.nearbyStores        = null;
+  renderStoreSelectorModal();
+
+  const radius = 16000;
+  const query  = `[out:json][timeout:10];node["shop"="supermarket"](around:${radius},${lat},${lng});out 80;`;
+  const url    = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
+
+  try {
+    const res  = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+
+    const nearby = {};
+    for (const elem of data.elements || []) {
+      const name = (elem.tags?.name || '').trim();
+      if (!name) continue;
+      const chain = STORE_CHAINS.find(c => c.nameMatch.test(name));
+      if (!chain) continue;
+      const distanceMi = haversineDistance(lat, lng, elem.lat, elem.lon);
+      const address    = fmtOsmAddress(elem.tags || {});
+      if (!nearby[chain.id] || distanceMi < nearby[chain.id].distanceMi) {
+        nearby[chain.id] = { address, distanceMi };
+      }
+    }
+
+    state.nearbyStores = nearby;
+  } catch (err) {
+    console.warn('[PrepFlow] Overpass fetch failed:', err.message);
+    state.nearbyStores = {};
+  }
+
+  state.nearbyStoresLoading = false;
+  renderStoreSelectorModal();
+}
+
 function requestStoreLocation() {
   const btn = document.getElementById('store-location-btn');
-  if (btn) { btn.textContent = 'Getting location…'; btn.disabled = true; }
+  if (btn) { btn.textContent = 'Finding stores near you…'; btn.disabled = true; }
 
   if (!('geolocation' in navigator)) {
     if (btn) { btn.textContent = 'Location unavailable'; btn.disabled = false; }
@@ -2026,11 +2067,11 @@ function requestStoreLocation() {
   navigator.geolocation.getCurrentPosition(
     (pos) => {
       state.userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      if (btn) { btn.textContent = '📍 Location found — Map links updated'; btn.disabled = false; }
-      renderStoreSelectorModal();
+      if (btn) { btn.textContent = '📍 Location found'; btn.disabled = false; }
+      fetchNearbyStores(state.userLocation.lat, state.userLocation.lng);
     },
     () => {
-      if (btn) { btn.textContent = 'Location denied — use Map links below'; btn.disabled = false; }
+      if (btn) { btn.textContent = 'Location denied — search manually below'; btn.disabled = false; }
     },
     { timeout: 8000 }
   );
@@ -2042,16 +2083,41 @@ function renderStoreSelectorModal() {
 
   const loc      = state.userLocation;
   const selected = state.selectedStore;
+  const loading  = state.nearbyStoresLoading;
+  const nearby   = state.nearbyStores;
 
   grid.innerHTML = STORE_CHAINS.map(chain => {
-    const isSelected   = selected?.id === chain.id;
-    const savedAddress = isSelected ? (selected.address || '') : '';
-
-    // When location is known, center the Maps search on the user's coordinates
-    const mapsUrl = loc
+    const isSelected = selected?.id === chain.id;
+    const found      = nearby?.[chain.id];
+    const mapsUrl    = loc
       ? `https://www.google.com/maps/search/${chain.mapQ}/@${loc.lat},${loc.lng},13z`
       : `https://www.google.com/maps/search/${chain.mapQ}`;
 
+    // Auto-detected branch: show distance + address, one tap to select
+    if (found) {
+      return `
+        <div class="store-chain-card${isSelected ? ' store-chain-card--selected' : ''}"
+             onclick="selectStore('${chain.id}')">
+          ${isSelected ? '<div class="store-chain-check">✓</div>' : ''}
+          <div class="store-chain-name">${chain.name}</div>
+          <div class="store-chain-distance">${found.distanceMi.toFixed(1)} mi away</div>
+          ${found.address ? `<div class="store-chain-address">${found.address}</div>` : ''}
+        </div>
+      `;
+    }
+
+    // Loading skeleton
+    if (loading) {
+      return `
+        <div class="store-chain-card">
+          <div class="store-chain-name">${chain.name}</div>
+          <div class="store-chain-loading">Searching nearby…</div>
+        </div>
+      `;
+    }
+
+    // Fallback: manual address input + Maps link
+    const savedAddress = isSelected ? (selected.address || '') : '';
     return `
       <div class="store-chain-card${isSelected ? ' store-chain-card--selected' : ''}"
            onclick="selectStore('${chain.id}')">
@@ -2061,7 +2127,7 @@ function renderStoreSelectorModal() {
           class="store-chain-addr-input"
           id="store-addr-${chain.id}"
           type="text"
-          placeholder="Paste address after finding on Maps"
+          placeholder="Enter address (optional)"
           value="${savedAddress.replace(/"/g, '&quot;')}"
           onclick="event.stopPropagation()"
           onfocus="event.stopPropagation()"
@@ -2093,7 +2159,8 @@ function renderStoreBanner() {
     return;
   }
 
-  const sub = store.address || null;
+  const sub = [store.address, store.distanceMi != null ? `${store.distanceMi.toFixed(1)} mi` : null]
+    .filter(Boolean).join(' · ') || null;
 
   banner.innerHTML = `
     <div class="store-banner-selected">

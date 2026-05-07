@@ -1037,17 +1037,16 @@ function renderMacroTargets() {
       >${p.label}</button>`;
     }).join('');
 
+    const anyOverridden = FIELDS.some(f => macros[f.key] !== calculated[f.key]);
+
     const macroFields = FIELDS.map(f => {
       const isOverridden = macros[f.key] !== calculated[f.key];
       return `
         <div class="macro-field${isOverridden ? ' macro-field--overridden' : ''}">
           <label>${f.label}${isOverridden ? '<span class="override-dot" title="Manually set"></span>' : ''}</label>
-          <div class="macro-input-wrap">
-            <input type="number" value="${macros[f.key]}"
-              class="${isOverridden ? 'input--overridden' : ''}"
-              onchange="saveMacroOverride('${member.id}', '${f.key}', this.value)" />
-            ${isOverridden ? `<button class="macro-reset-btn" onclick="resetMacroField('${member.id}', '${f.key}')" title="Reset to calculated">↺</button>` : ''}
-          </div>
+          <input type="number" value="${macros[f.key]}"
+            class="${isOverridden ? 'input--overridden' : ''}"
+            onchange="saveMacroOverride('${member.id}', '${f.key}', this.value)" />
         </div>
       `;
     }).join('');
@@ -1092,7 +1091,10 @@ function renderMacroTargets() {
           <span class="member-name">${member.name}</span>
           <div class="phase-toggle">${phaseBtns}</div>
         </div>
-        <div class="macro-inputs">${macroFields}</div>
+        <div class="macro-inputs">
+          ${macroFields}
+          ${anyOverridden ? `<button class="macro-reset-all-btn" onclick="resetAllMacros('${member.id}')" title="Reset all to calculated">↺</button>` : ''}
+        </div>
         ${scalePrompt}
         ${propagatePrompt}
       </div>
@@ -1193,13 +1195,12 @@ function dismissPhasePropagate() {
   renderMacroTargets();
 }
 
-function resetMacroField(memberId, field) {
+function resetAllMacros(memberId) {
   const phase = state.memberPhases[memberId];
   const calc = getCalculatedMacros(memberId, phase);
-  state.memberMacros[memberId][phase][field] = calc[field];
-  if (state.pendingMacroScale?.memberId === memberId && state.pendingMacroScale?.field === field) {
-    state.pendingMacroScale = null;
-  }
+  state.memberMacros[memberId][phase] = { ...calc };
+  if (state.pendingMacroScale?.memberId === memberId) state.pendingMacroScale = null;
+  if (state.pendingPhasePropagate?.memberId === memberId) state.pendingPhasePropagate = null;
   saveMemberMacros();
   renderAll();
 }

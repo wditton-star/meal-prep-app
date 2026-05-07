@@ -614,13 +614,6 @@ html.dark .icon-moon { display: none; }
 }
 
 /* Override indicators */
-.macro-input-wrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
 .override-dot {
   width: 6px;
   height: 6px;
@@ -640,21 +633,22 @@ html.dark .input--overridden {
   background: #2a2310 !important;
 }
 
-.macro-reset-btn {
-  font-size: 13px;
+.macro-reset-all-btn {
+  align-self: flex-end;
+  font-size: 15px;
   line-height: 1;
   color: #92400e;
   background: none;
   border: none;
   cursor: pointer;
-  padding: 2px;
-  opacity: 0.7;
+  padding: 4px 2px 2px;
+  opacity: 0.6;
   transition: opacity 0.15s;
   flex-shrink: 0;
 }
-.macro-reset-btn:hover { opacity: 1; }
+.macro-reset-all-btn:hover { opacity: 1; }
 
-html.dark .macro-reset-btn { color: #fcd34d; }
+html.dark .macro-reset-all-btn { color: #fcd34d; }
 
 /* Scale prompt */
 .macro-scale-prompt {

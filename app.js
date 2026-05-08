@@ -2242,8 +2242,8 @@ function renderPortionTable() {
   const memberHeaders = members.map(m => {
     const phase     = state.memberPhases[m.id] || 'maintenance';
     const macros    = state.memberMacros[m.id]?.[phase] || m.maintenance;
-    const label     = phase === 'bulk' ? 'Bulk' : phase === 'deficit' ? 'Deficit' : 'Maintain';
-    const phaseClass = `pt-phase--${phase}`;
+    const label     = phase === 'bulking' ? 'Bulk' : phase === 'deficit' ? 'Deficit' : 'Maintain';
+    const phaseClass = phase === 'bulking' ? 'pt-phase--bulk' : phase === 'deficit' ? 'pt-phase--deficit' : 'pt-phase--maintenance';
     const dayCount  = instances.filter(i => i.members.includes(m.id)).length;
     const dayLabel  = `${dayCount} day${dayCount !== 1 ? 's' : ''}`;
     return `

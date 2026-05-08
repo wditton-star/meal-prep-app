@@ -561,6 +561,11 @@ const RECIPES = [
       { amount: 2,   unit: 'cloves',name: 'garlic, minced' },
       { amount: 0,   unit: '',      name: 'salt and pepper' },
     ],
+    portionIngredients: [
+      { name: 'Chicken breast', gramsPerServing: 227, displayUnit: 'oz' },
+      { name: 'Rice (cooked)',  gramsPerServing: 186, displayUnit: 'cups', gramsPerCup: 186 },
+      { name: 'Vegetables',     gramsPerServing: 155, displayUnit: 'cups', gramsPerCup: 91 },
+    ],
   },
   {
     id: 'turkey-stirfry',
@@ -578,6 +583,10 @@ const RECIPES = [
       { amount: 2,   unit: 'cloves',name: 'garlic, minced' },
       { amount: 1,   unit: 'tsp',  name: 'fresh ginger' },
     ],
+    portionIngredients: [
+      { name: 'Ground turkey', gramsPerServing: 170, displayUnit: 'oz' },
+      { name: 'Mixed veg',     gramsPerServing: 170, displayUnit: 'cups', gramsPerCup: 90 },
+    ],
   },
   {
     id: 'salmon-sweet-potato',
@@ -592,6 +601,10 @@ const RECIPES = [
       { amount: 1,   unit: 'tsp',  name: 'paprika' },
       { amount: 1,   unit: 'tbsp', name: 'lemon juice' },
       { amount: 0,   unit: '',     name: 'salt and pepper' },
+    ],
+    portionIngredients: [
+      { name: 'Salmon fillet',  gramsPerServing: 170, displayUnit: 'oz' },
+      { name: 'Sweet potato',   gramsPerServing: 150, displayUnit: 'oz' },
     ],
   },
   {
@@ -608,6 +621,11 @@ const RECIPES = [
       { amount: 1,   unit: 'cup',  name: 'shredded cheddar cheese' },
       { amount: 1,   unit: '',     name: 'avocado, sliced' },
       { amount: 0,   unit: '',     name: 'salt and pepper' },
+    ],
+    portionIngredients: [
+      { name: 'Ground beef',   gramsPerServing: 170, displayUnit: 'oz' },
+      { name: 'Rice (cooked)', gramsPerServing: 186, displayUnit: 'cups', gramsPerCup: 186 },
+      { name: 'Toppings',      gramsPerServing: 95,  displayUnit: 'oz' },
     ],
   },
 ];
@@ -1159,6 +1177,8 @@ const state = {
   editingPriceKey:       null,
   favoriteRecipes:       loadFavorites(),
   recipeFilter:          'all',
+  portionUnit:           localStorage.getItem('preptarePortionUnit') || 'imperial',
+  portionRecipeId:       null,
 };
 
 // Transient state for the calculator modal (not persisted between opens)
@@ -2138,61 +2158,182 @@ function setPrepMode(mode) {
   renderPrepSteps();
 }
 
+/* ── Portion helpers ──────────────────────────────────────────── */
+
+function setPortionUnit(unit) {
+  state.portionUnit = unit;
+  localStorage.setItem('preptarePortionUnit', unit);
+  renderPortionTable();
+}
+
+function setPortionRecipe(recipeId) {
+  state.portionRecipeId = recipeId;
+  renderPortionTable();
+}
+
+function fmtCupFraction(cups) {
+  const q = Math.round(cups * 4) / 4;
+  const whole = Math.floor(q);
+  const frac  = q - whole;
+  const f = frac === 0.25 ? '¼' : frac === 0.5 ? '½' : frac === 0.75 ? '¾' : '';
+  if (whole === 0) return `${f || '0'} cup`;
+  if (!f) return `${whole} ${whole === 1 ? 'cup' : 'cups'}`;
+  return `${whole}${f} cups`;
+}
+
+function fmtIngredientAmount(grams, ing, unit) {
+  if (unit === 'grams') return `${Math.round(grams / 5) * 5}g`;
+  if (ing.displayUnit === 'cups') {
+    return fmtCupFraction(grams / (ing.gramsPerCup || 186));
+  }
+  const oz = grams / 28.35;
+  return `${(Math.round(oz * 2) / 2).toFixed(1)} oz`;
+}
+
+function fmtIngredientWeekTotal(gramsPerMeal, ing, unit, days) {
+  const total = gramsPerMeal * days;
+  if (unit === 'grams') return `${Math.round(total)}g`;
+  if (ing.displayUnit === 'cups') {
+    return fmtCupFraction(total / (ing.gramsPerCup || 186));
+  }
+  const oz = total / 28.35;
+  return oz >= 16 ? `${(oz / 16).toFixed(1)} lbs` : `${Math.round(oz)} oz`;
+}
+
 /**
  * Stage 5 — Per-meal, per-member portion breakdown from calendar.
  */
 function renderPortionTable() {
-  const container = document.getElementById('portion-table-body');
-  if (!container) return;
+  const card = document.getElementById('portion-card');
+  if (!card) return;
 
   const plan = buildWeekPlan();
-  const startDay = state.prefs.weekStartDay;
-  const weekDayNames = Array.from({ length: 7 }, (_, i) => ALL_DAYS[(startDay + i) % 7]);
 
   if (!plan.hasMeals) {
-    container.innerHTML = `<tr><td colspan="5" class="plan-empty-state">Portion breakdowns will appear here once meals are added to the calendar.</td></tr>`;
+    card.innerHTML = `
+      <div class="card-header">Portion breakdown</div>
+      <div class="portion-empty">
+        <div class="portion-empty-icon">🥗</div>
+        <p>Add meals to the calendar on Stage 1 to see tailored portion sizes for each family member.</p>
+      </div>`;
     return;
   }
 
-  const rows = [];
-  for (const { recipe, instances } of plan.recipes) {
-    // Section header row for this recipe
-    rows.push(`<tr class="portion-recipe-header"><td colspan="5">${recipe.name}</td></tr>`);
-
-    // Collect all unique members across all instances of this recipe (excluded already filtered in buildWeekPlan)
-    const memberIds = [...new Set(instances.flatMap(inst => inst.members))];
-
-    for (const mid of memberIds) {
-      const m = MEMBERS.find(x => x.id === mid);
-      const scale = getMemberScaleFactor(mid);
-      const protein  = Math.round((recipe.protein  || 0) * scale);
-      const carbs    = Math.round((recipe.carbs    || 0) * scale);
-      const fat      = Math.round((recipe.fat      || 0) * scale);
-      const calories = Math.round((recipe.calories || 0) * scale);
-      // Days this member eats this meal
-      const days = instances
-        .filter(inst => inst.members.includes(mid))
-        .map(inst => weekDayNames[inst.dayIdx])
-        .join(', ');
-
-      rows.push(`
-        <tr>
-          <td>
-            <div class="member-cell">
-              <div class="avatar ${m.avatarClass}">${m.initials}</div>
-              <span>${m.name}</span>
-            </div>
-          </td>
-          <td class="portion-days">${days}</td>
-          <td class="highlight-val">${protein}g</td>
-          <td>${carbs}g / ${fat}g</td>
-          <td class="highlight-val">${calories}</td>
-        </tr>
-      `);
-    }
+  // Resolve active recipe tab
+  const planRecipeIds = plan.recipes.map(r => r.recipe.id);
+  if (!state.portionRecipeId || !planRecipeIds.includes(state.portionRecipeId)) {
+    state.portionRecipeId = planRecipeIds[0];
   }
+  const { recipe, instances } = plan.recipes.find(r => r.recipe.id === state.portionRecipeId);
 
-  container.innerHTML = rows.join('');
+  // Members eating this recipe this week (already exclusion-filtered by buildWeekPlan)
+  const memberIds = [...new Set(instances.flatMap(i => i.members))];
+  const members   = memberIds.map(mid => MEMBERS.find(m => m.id === mid)).filter(Boolean);
+  const isGrams   = state.portionUnit === 'grams';
+  const colSpan   = members.length + 1;
+
+  /* ── Recipe tabs ── */
+  const tabs = plan.recipes.map(({ recipe: r }) => `
+    <button class="pt-recipe-tab${r.id === state.portionRecipeId ? ' active' : ''}"
+      ontouchend="setPortionRecipe('${r.id}');event.preventDefault()"
+      onclick="setPortionRecipe('${r.id}')">${r.name}</button>`).join('');
+
+  /* ── Member column headers ── */
+  const memberHeaders = members.map(m => {
+    const phase     = state.memberPhases[m.id] || 'maintenance';
+    const macros    = state.memberMacros[m.id]?.[phase] || m.maintenance;
+    const label     = phase === 'bulk' ? 'Bulk' : phase === 'deficit' ? 'Deficit' : 'Maintain';
+    const phaseClass = `pt-phase--${phase}`;
+    const dayCount  = instances.filter(i => i.members.includes(m.id)).length;
+    const dayLabel  = `${dayCount} day${dayCount !== 1 ? 's' : ''}`;
+    return `
+      <th class="pt-member-col">
+        <div class="pt-member-avatar">
+          <div class="avatar ${m.avatarClass}">${m.initials}</div>
+        </div>
+        <div class="pt-member-name">${m.name}</div>
+        <span class="pt-phase-badge ${phaseClass}">${label}</span>
+        <div class="pt-member-meta">${macros.cal.toLocaleString()} cal · ${dayLabel}</div>
+      </th>`;
+  }).join('');
+
+  /* ── Ingredient rows ── */
+  const portionIngs = recipe.portionIngredients || [];
+  const ingredientRows = portionIngs.map((ing, idx) => {
+    const cells = members.map(m => {
+      const grams = ing.gramsPerServing * getMemberScaleFactor(m.id);
+      return `<td class="pt-amount-cell">${fmtIngredientAmount(grams, ing, state.portionUnit)}</td>`;
+    }).join('');
+    return `<tr class="pt-ing-row${idx % 2 === 1 ? ' pt-row-alt' : ''}">
+      <td class="pt-label-cell"><span class="pt-ing-dot"></span>${ing.name}</td>${cells}</tr>`;
+  }).join('');
+
+  /* ── Macro rows ── */
+  const macroConfig = [
+    { key: 'calories', label: 'Calories', fmt: v => v.toLocaleString('en', {maximumFractionDigits:0}), cls: 'pt-macro--cal' },
+    { key: 'protein',  label: 'Protein',  fmt: v => `${Math.round(v)}g`, cls: 'pt-macro--protein' },
+    { key: 'carbs',    label: 'Carbs',    fmt: v => `${Math.round(v)}g`, cls: '' },
+    { key: 'fat',      label: 'Fat',      fmt: v => `${Math.round(v)}g`, cls: '' },
+  ];
+  const macroRows = macroConfig.map(({ key, label, fmt, cls }) => {
+    const cells = members.map(m => {
+      const val = (recipe[key] || 0) * getMemberScaleFactor(m.id);
+      return `<td class="pt-macro-cell ${cls}">${fmt(val)}</td>`;
+    }).join('');
+    return `<tr class="pt-macro-row"><td class="pt-label-cell pt-macro-label">${label}</td>${cells}</tr>`;
+  }).join('');
+
+  /* ── Week total row ── */
+  const totalCells = members.map(m => {
+    const scale    = getMemberScaleFactor(m.id);
+    const dayCount = instances.filter(i => i.members.includes(m.id)).length;
+    if (!portionIngs.length) return `<td class="pt-total-cell">—</td>`;
+    const lines = portionIngs.map(ing => {
+      const gramsPerMeal = ing.gramsPerServing * scale;
+      return `<span class="pt-total-line">${ing.name.split(' ')[0]}: <strong>${fmtIngredientWeekTotal(gramsPerMeal, ing, state.portionUnit, dayCount)}</strong></span>`;
+    }).join('');
+    return `<td class="pt-total-cell">${lines}</td>`;
+  }).join('');
+
+  card.innerHTML = `
+    <div class="pt-card-top">
+      <div class="pt-recipe-tabs">${tabs}</div>
+      <div class="pt-unit-toggle">
+        <button class="pt-unit-btn${!isGrams ? ' active' : ''}"
+          ontouchend="setPortionUnit('imperial');event.preventDefault()"
+          onclick="setPortionUnit('imperial')">oz / cups</button>
+        <button class="pt-unit-btn${isGrams ? ' active' : ''}"
+          ontouchend="setPortionUnit('grams');event.preventDefault()"
+          onclick="setPortionUnit('grams')">g</button>
+      </div>
+    </div>
+    <div class="pt-table-wrap">
+      <table class="pt-table">
+        <thead>
+          <tr class="pt-header-row">
+            <th class="pt-label-col"></th>
+            ${memberHeaders}
+          </tr>
+        </thead>
+        <tbody>
+          ${portionIngs.length ? `
+            <tr class="pt-section-label-row">
+              <td class="pt-section-label" colspan="${colSpan}">Ingredients per meal</td>
+            </tr>
+            ${ingredientRows}
+          ` : ''}
+          <tr class="pt-section-label-row">
+            <td class="pt-section-label" colspan="${colSpan}">Macros per meal</td>
+          </tr>
+          ${macroRows}
+          <tr class="pt-divider-row"><td colspan="${colSpan}"></td></tr>
+          <tr class="pt-total-row">
+            <td class="pt-label-cell pt-total-label">Week total</td>
+            ${totalCells}
+          </tr>
+        </tbody>
+      </table>
+    </div>`;
 }
 
 

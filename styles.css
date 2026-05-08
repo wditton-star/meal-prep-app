@@ -2207,20 +2207,8 @@ html.dark .time-badge--cook {
   overflow-x: auto;
 }
 
-.portion-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-.portion-table th {
-  text-align: left;
-  padding: 8px 10px;
-  color: var(--color-text-muted);
-  font-weight: 500;
-  border-bottom: 0.5px solid var(--color-border);
-  white-space: nowrap;
-}
+/* ── Old portion table (kept for reference, overridden below) ── */
+.portion-table { display: none; }
 
 .portion-table td {
   padding: 10px 10px;
@@ -2501,19 +2489,258 @@ html.dark .member-remove-confirm-text { color: #fca5a5; }
   color: var(--color-text-muted);
 }
 
-/* ── Portion table: new columns ── */
-.portion-recipe-header td {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--color-brand);
-  padding: 12px 8px 4px;
-  border-bottom: 1px solid var(--color-brand-mid);
+/* ════════════════════════════════════════════════════════════
+   PORTION TABLE — redesigned (pt- prefix)
+   ════════════════════════════════════════════════════════════ */
+
+/* Empty state */
+.portion-empty {
+  padding: var(--space-lg) var(--space-md);
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.portion-empty-icon { font-size: 28px; margin-bottom: var(--space-xs); }
+
+/* Card top: recipe tabs + unit toggle */
+.pt-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 0.5px solid var(--color-border);
+  flex-wrap: wrap;
 }
 
-.portion-days {
+.pt-recipe-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex: 1;
+  min-width: 0;
+  -webkit-overflow-scrolling: touch;
+}
+.pt-recipe-tabs::-webkit-scrollbar { display: none; }
+
+.pt-recipe-tab {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.pt-recipe-tab:hover { border-color: var(--color-brand); color: var(--color-brand); }
+.pt-recipe-tab.active {
+  background: var(--color-brand);
+  border-color: var(--color-brand);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* Unit toggle */
+.pt-unit-toggle {
+  display: flex;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.pt-unit-btn {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 5px 10px;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  border: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.12s, color 0.12s;
+}
+.pt-unit-btn + .pt-unit-btn { border-left: 1px solid var(--color-border-strong); }
+.pt-unit-btn.active {
+  background: var(--color-brand);
+  color: #fff;
+}
+
+/* Table wrapper — horizontal scroll on mobile, sticky first col */
+.pt-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  padding-bottom: 2px;
+}
+
+.pt-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+/* Label column — sticky on scroll */
+.pt-label-col,
+.pt-label-cell {
+  position: sticky;
+  left: 0;
+  background: var(--color-surface);
+  z-index: 1;
+  min-width: 110px;
+  max-width: 130px;
+}
+html.dark .pt-label-col,
+html.dark .pt-label-cell { background: var(--color-surface); }
+
+/* Member column headers */
+.pt-header-row th { padding: 12px 10px 10px; vertical-align: bottom; }
+.pt-label-col { padding: 12px 10px 10px; }
+
+.pt-member-col {
+  text-align: center;
+  min-width: 100px;
+  padding: 12px 8px 10px;
+  border-bottom: 1.5px solid var(--color-border);
+}
+.pt-member-avatar { display: flex; justify-content: center; margin-bottom: 5px; }
+.pt-member-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 4px;
+}
+.pt-phase-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  margin-bottom: 4px;
+  letter-spacing: 0.02em;
+}
+.pt-phase--bulk      { background: #dcfce7; color: #166534; }
+.pt-phase--deficit   { background: #fef9c3; color: #854d0e; }
+.pt-phase--maintenance { background: #dbeafe; color: #1e40af; }
+html.dark .pt-phase--bulk      { background: #14532d; color: #86efac; }
+html.dark .pt-phase--deficit   { background: #422006; color: #fde68a; }
+html.dark .pt-phase--maintenance { background: #1e3a5f; color: #93c5fd; }
+
+.pt-member-meta {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+/* Section label rows */
+.pt-section-label-row { background: var(--color-bg); }
+.pt-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--color-text-muted);
+  padding: 8px 10px 4px;
+  position: sticky;
+  left: 0;
+  background: var(--color-bg);
+}
+
+/* Ingredient rows */
+.pt-ing-row td { padding: 8px 10px; border-bottom: 0.5px solid var(--color-border); }
+.pt-row-alt td { background: color-mix(in srgb, var(--color-brand) 4%, var(--color-surface)); }
+html.dark .pt-row-alt td { background: color-mix(in srgb, var(--color-brand) 6%, var(--color-surface)); }
+.pt-row-alt .pt-label-cell { background: color-mix(in srgb, var(--color-brand) 4%, var(--color-surface)); }
+html.dark .pt-row-alt .pt-label-cell { background: color-mix(in srgb, var(--color-brand) 6%, var(--color-surface)); }
+
+.pt-label-cell {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  padding: 8px 10px;
+  white-space: nowrap;
+}
+.pt-ing-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-brand);
+  opacity: 0.5;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.pt-amount-cell {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  padding: 8px 10px;
+  border-bottom: 0.5px solid var(--color-border);
+  white-space: nowrap;
+}
+
+/* Macro rows */
+.pt-macro-row td { padding: 7px 10px; border-bottom: 0.5px solid var(--color-border); }
+.pt-macro-label {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+.pt-macro-cell {
+  text-align: center;
+  font-size: 13px;
+  color: var(--color-text);
+  padding: 7px 10px;
+  border-bottom: 0.5px solid var(--color-border);
+  white-space: nowrap;
+}
+.pt-macro--cal {
+  font-weight: 700;
+  color: var(--color-brand) !important;
+  font-size: 14px !important;
+}
+.pt-macro--protein { font-weight: 600; color: #3b82f6 !important; }
+
+/* Divider */
+.pt-divider-row td {
+  height: 1px;
+  background: var(--color-border);
+  padding: 0;
+}
+
+/* Week total row */
+.pt-total-row td {
+  padding: 10px 10px;
+  background: color-mix(in srgb, var(--color-brand) 6%, var(--color-surface));
+  border-top: 1px solid var(--color-border);
+}
+.pt-total-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+}
+.pt-total-cell {
+  text-align: center;
+  vertical-align: top;
+}
+.pt-total-line {
+  display: block;
   font-size: 11px;
   color: var(--color-text-muted);
   white-space: nowrap;
+  line-height: 1.7;
+}
+.pt-total-line strong {
+  font-weight: 700;
+  color: var(--color-text);
 }
 
 /* Visually hidden — for screen readers */

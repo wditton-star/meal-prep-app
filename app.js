@@ -20,7 +20,7 @@
 (function initTheme() {
   const saved = localStorage.getItem('theme');
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  if (saved === 'dark' || (!saved && prefersDark)) {
+  if (saved !== 'light') {
     document.documentElement.classList.add('dark');
   }
 })();

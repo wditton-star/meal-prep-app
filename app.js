@@ -2198,6 +2198,14 @@ function setPortionRecipe(recipeId) {
   renderPortionTable();
 }
 
+function stepPortionRecipe(delta) {
+  const plan = buildWeekPlan();
+  const ids = plan.recipes.map(r => r.recipe.id);
+  const idx = ids.indexOf(state.portionRecipeId);
+  const next = ids[(idx + delta + ids.length) % ids.length];
+  setPortionRecipe(next);
+}
+
 function fmtCupFraction(cups) {
   const q = Math.round(cups * 4) / 4;
   const whole = Math.floor(q);
@@ -2229,6 +2237,7 @@ function fmtIngredientWeekTotal(gramsPerMeal, ing, unit, days) {
 
 /**
  * Stage 5 — Per-meal, per-member portion breakdown from calendar.
+ * Layout: recipe prev/next nav → vertical member cards (no horizontal scroll).
  */
 function renderPortionTable() {
   const card = document.getElementById('portion-card');
@@ -2246,85 +2255,39 @@ function renderPortionTable() {
     return;
   }
 
-  // Resolve active recipe tab
+  // Resolve active recipe
   const planRecipeIds = plan.recipes.map(r => r.recipe.id);
   if (!state.portionRecipeId || !planRecipeIds.includes(state.portionRecipeId)) {
     state.portionRecipeId = planRecipeIds[0];
   }
-  const { recipe, instances } = plan.recipes.find(r => r.recipe.id === state.portionRecipeId);
+  const recipeIdx = planRecipeIds.indexOf(state.portionRecipeId);
+  const { recipe, instances } = plan.recipes[recipeIdx];
+  const recipeCount = plan.recipes.length;
 
-  // Members eating this recipe this week (already exclusion-filtered by buildWeekPlan)
-  const memberIds = [...new Set(instances.flatMap(i => i.members))];
-  const members   = memberIds.map(mid => MEMBERS.find(m => m.id === mid)).filter(Boolean);
-  const isGrams   = state.portionUnit === 'grams';
-  const colSpan   = members.length + 1;
-
-  /* ── Recipe tabs ── */
-  const tabs = plan.recipes.map(({ recipe: r }) => `
-    <button class="pt-recipe-tab${r.id === state.portionRecipeId ? ' active' : ''}"
-      ontouchend="setPortionRecipe('${r.id}');event.preventDefault()"
-      onclick="setPortionRecipe('${r.id}')">${r.name}</button>`).join('');
-
-  /* ── Member column headers ── */
-  const memberHeaders = members.map(m => {
-    const phase     = state.memberPhases[m.id] || 'maintenance';
-    const macros    = state.memberMacros[m.id]?.[phase] || m.maintenance;
-    const label     = phase === 'bulking' ? 'Bulk' : phase === 'deficit' ? 'Deficit' : phase === 'custom' ? 'Custom' : 'Maintain';
-    const phaseClass = phase === 'bulking' ? 'pt-phase--bulk' : phase === 'deficit' ? 'pt-phase--deficit' : phase === 'custom' ? 'pt-phase--custom' : 'pt-phase--maintenance';
-    const dayCount  = instances.filter(i => i.members.includes(m.id)).length;
-    const dayLabel  = `${dayCount} day${dayCount !== 1 ? 's' : ''}`;
-    return `
-      <th class="pt-member-col">
-        <div class="pt-member-avatar">
-          <div class="avatar ${m.avatarClass}">${m.initials}</div>
-        </div>
-        <div class="pt-member-name">${m.name}</div>
-        <span class="pt-phase-badge ${phaseClass}">${label}</span>
-        <div class="pt-member-meta">${macros.cal.toLocaleString()} cal · ${dayLabel}</div>
-      </th>`;
-  }).join('');
-
-  /* ── Ingredient rows ── */
+  const memberIds  = [...new Set(instances.flatMap(i => i.members))];
+  const members    = memberIds.map(mid => MEMBERS.find(m => m.id === mid)).filter(Boolean);
+  const isGrams    = state.portionUnit === 'grams';
   const portionIngs = recipe.portionIngredients || [];
-  const ingredientRows = portionIngs.map((ing, idx) => {
-    const cells = members.map(m => {
-      const grams = ing.gramsPerServing * getMemberScaleFactor(m.id);
-      return `<td class="pt-amount-cell">${fmtIngredientAmount(grams, ing, state.portionUnit)}</td>`;
-    }).join('');
-    return `<tr class="pt-ing-row${idx % 2 === 1 ? ' pt-row-alt' : ''}">
-      <td class="pt-label-cell"><span class="pt-ing-dot"></span>${ing.name}</td>${cells}</tr>`;
-  }).join('');
 
-  /* ── Macro rows ── */
-  const macroConfig = [
-    { key: 'calories', label: 'Calories', fmt: v => v.toLocaleString('en', {maximumFractionDigits:0}), cls: 'pt-macro--cal' },
-    { key: 'protein',  label: 'Protein',  fmt: v => `${Math.round(v)}g`, cls: 'pt-macro--protein' },
-    { key: 'carbs',    label: 'Carbs',    fmt: v => `${Math.round(v)}g`, cls: '' },
-    { key: 'fat',      label: 'Fat',      fmt: v => `${Math.round(v)}g`, cls: '' },
-  ];
-  const macroRows = macroConfig.map(({ key, label, fmt, cls }) => {
-    const cells = members.map(m => {
-      const val = (recipe[key] || 0) * getMemberScaleFactor(m.id);
-      return `<td class="pt-macro-cell ${cls}">${fmt(val)}</td>`;
-    }).join('');
-    return `<tr class="pt-macro-row"><td class="pt-label-cell pt-macro-label">${label}</td>${cells}</tr>`;
-  }).join('');
+  /* ── Recipe nav bar ── */
+  const recipeNav = `
+    <div class="pt-recipe-nav">
+      <button class="pt-nav-arrow${recipeCount < 2 ? ' pt-nav-arrow--hidden' : ''}"
+        ontouchend="stepPortionRecipe(-1);event.preventDefault()"
+        onclick="stepPortionRecipe(-1)" aria-label="Previous recipe">&#8592;</button>
+      <div class="pt-recipe-name-wrap">
+        <span class="pt-recipe-name">${recipe.name}</span>
+        ${recipeCount > 1 ? `<span class="pt-recipe-counter">${recipeIdx + 1} / ${recipeCount}</span>` : ''}
+      </div>
+      <button class="pt-nav-arrow${recipeCount < 2 ? ' pt-nav-arrow--hidden' : ''}"
+        ontouchend="stepPortionRecipe(1);event.preventDefault()"
+        onclick="stepPortionRecipe(1)" aria-label="Next recipe">&#8594;</button>
+    </div>`;
 
-  /* ── Week total row ── */
-  const totalCells = members.map(m => {
-    const scale    = getMemberScaleFactor(m.id);
-    const dayCount = instances.filter(i => i.members.includes(m.id)).length;
-    if (!portionIngs.length) return `<td class="pt-total-cell">—</td>`;
-    const lines = portionIngs.map(ing => {
-      const gramsPerMeal = ing.gramsPerServing * scale;
-      return `<span class="pt-total-line">${ing.name.split(' ')[0]}: <strong>${fmtIngredientWeekTotal(gramsPerMeal, ing, state.portionUnit, dayCount)}</strong></span>`;
-    }).join('');
-    return `<td class="pt-total-cell">${lines}</td>`;
-  }).join('');
-
-  card.innerHTML = `
-    <div class="pt-card-top">
-      <div class="pt-recipe-tabs">${tabs}</div>
+  /* ── Unit toggle ── */
+  const unitToggle = `
+    <div class="pt-unit-row">
+      <span class="pt-unit-label">Measure in</span>
       <div class="pt-unit-toggle">
         <button class="pt-unit-btn${!isGrams ? ' active' : ''}"
           ontouchend="setPortionUnit('imperial');event.preventDefault()"
@@ -2333,34 +2296,87 @@ function renderPortionTable() {
           ontouchend="setPortionUnit('grams');event.preventDefault()"
           onclick="setPortionUnit('grams')">g</button>
       </div>
-    </div>
-    <div class="pt-table-wrap">
-      <table class="pt-table">
-        <thead>
-          <tr class="pt-header-row">
-            <th class="pt-label-col"></th>
-            ${memberHeaders}
-          </tr>
-        </thead>
-        <tbody>
-          ${portionIngs.length ? `
-            <tr class="pt-section-label-row">
-              <td class="pt-section-label" colspan="${colSpan}">Ingredients per meal</td>
-            </tr>
-            ${ingredientRows}
-          ` : ''}
-          <tr class="pt-section-label-row">
-            <td class="pt-section-label" colspan="${colSpan}">Macros per meal</td>
-          </tr>
-          ${macroRows}
-          <tr class="pt-divider-row"><td colspan="${colSpan}"></td></tr>
-          <tr class="pt-total-row">
-            <td class="pt-label-cell pt-total-label">Week total</td>
-            ${totalCells}
-          </tr>
-        </tbody>
-      </table>
     </div>`;
+
+  /* ── Per-member cards ── */
+  const memberCards = members.map(m => {
+    const phase     = state.memberPhases[m.id] || 'maintenance';
+    const macros    = state.memberMacros[m.id]?.[phase] || m.maintenance;
+    const scale     = getMemberScaleFactor(m.id);
+    const dayCount  = instances.filter(i => i.members.includes(m.id)).length;
+    const phaseLabel = phase === 'bulking' ? 'Bulk' : phase === 'deficit' ? 'Deficit' : phase === 'custom' ? 'Custom' : 'Maintain';
+    const phaseClass = phase === 'bulking' ? 'pt-phase--bulk' : phase === 'deficit' ? 'pt-phase--deficit' : phase === 'custom' ? 'pt-phase--custom' : 'pt-phase--maintenance';
+
+    /* Ingredient grid */
+    const ingGrid = portionIngs.length ? `
+      <div class="pt-ing-section-label">Ingredients per meal</div>
+      <div class="pt-ing-grid">
+        ${portionIngs.map(ing => {
+          const grams = ing.gramsPerServing * scale;
+          return `
+            <div class="pt-ing-item">
+              <span class="pt-ing-name">${ing.name}</span>
+              <span class="pt-ing-amount">${fmtIngredientAmount(grams, ing, state.portionUnit)}</span>
+            </div>`;
+        }).join('')}
+      </div>` : '';
+
+    /* Macro strip */
+    const cal     = Math.round((recipe.calories || 0) * scale);
+    const protein = Math.round((recipe.protein  || 0) * scale);
+    const carbs   = Math.round((recipe.carbs    || 0) * scale);
+    const fat     = Math.round((recipe.fat      || 0) * scale);
+    const macroStrip = `
+      <div class="pt-macro-strip">
+        <div class="pt-macro-chip pt-macro-chip--cal">
+          <span class="pt-macro-chip-val">${cal}</span>
+          <span class="pt-macro-chip-lbl">cal</span>
+        </div>
+        <div class="pt-macro-chip pt-macro-chip--protein">
+          <span class="pt-macro-chip-val">${protein}g</span>
+          <span class="pt-macro-chip-lbl">protein</span>
+        </div>
+        <div class="pt-macro-chip">
+          <span class="pt-macro-chip-val">${carbs}g</span>
+          <span class="pt-macro-chip-lbl">carbs</span>
+        </div>
+        <div class="pt-macro-chip">
+          <span class="pt-macro-chip-val">${fat}g</span>
+          <span class="pt-macro-chip-lbl">fat</span>
+        </div>
+      </div>`;
+
+    /* Week total */
+    const weekLines = portionIngs.map(ing => {
+      const gramsPerMeal = ing.gramsPerServing * scale;
+      return `<span class="pt-week-item"><span class="pt-week-ing">${ing.name}</span><strong>${fmtIngredientWeekTotal(gramsPerMeal, ing, state.portionUnit, dayCount)}</strong></span>`;
+    }).join('');
+    const weekTotal = portionIngs.length ? `
+      <div class="pt-week-total">
+        <span class="pt-week-label">Week total · ${dayCount} day${dayCount !== 1 ? 's' : ''}</span>
+        <div class="pt-week-items">${weekLines}</div>
+      </div>` : '';
+
+    return `
+      <div class="pt-member-card">
+        <div class="pt-member-card-header">
+          <div class="avatar ${m.avatarClass}">${m.initials}</div>
+          <div class="pt-member-card-info">
+            <span class="pt-member-card-name">${m.name}</span>
+            <span class="pt-phase-badge ${phaseClass}">${phaseLabel}</span>
+          </div>
+          <div class="pt-member-card-cal">${macros.cal.toLocaleString()}<span class="pt-member-card-cal-lbl"> cal/day</span></div>
+        </div>
+        ${ingGrid}
+        ${macroStrip}
+        ${weekTotal}
+      </div>`;
+  }).join('');
+
+  card.innerHTML = `
+    ${recipeNav}
+    ${unitToggle}
+    <div class="pt-member-cards">${memberCards}</div>`;
 }
 
 

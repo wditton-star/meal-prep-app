@@ -2515,62 +2515,75 @@ html.dark .member-remove-confirm-text { color: #fca5a5; }
 }
 .portion-empty-icon { font-size: 28px; margin-bottom: var(--space-xs); }
 
-/* Card top: recipe tabs + unit toggle */
-.pt-card-top {
+/* ── Recipe nav bar ── */
+.pt-recipe-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 14px var(--space-md);
+  border-bottom: 0.5px solid var(--color-border);
+}
+.pt-nav-arrow {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 16px;
+  cursor: pointer;
+  touch-action: manipulation;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s, border-color 0.12s;
+}
+.pt-nav-arrow:hover { background: var(--color-brand-light); border-color: var(--color-brand); }
+.pt-nav-arrow--hidden { visibility: hidden; pointer-events: none; }
+.pt-recipe-name-wrap {
+  flex: 1;
+  text-align: center;
+  min-width: 0;
+}
+.pt-recipe-name {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pt-recipe-counter {
+  display: block;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+/* ── Unit toggle row ── */
+.pt-unit-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-sm);
-  padding: var(--space-sm) var(--space-md);
+  padding: 10px var(--space-md);
   border-bottom: 0.5px solid var(--color-border);
-  flex-wrap: wrap;
 }
-
-.pt-recipe-tabs {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  flex: 1;
-  min-width: 0;
-  -webkit-overflow-scrolling: touch;
-}
-.pt-recipe-tabs::-webkit-scrollbar { display: none; }
-
-.pt-recipe-tab {
-  flex-shrink: 0;
+.pt-unit-label {
   font-size: 12px;
-  font-weight: 500;
-  padding: 5px 12px;
-  border-radius: 999px;
-  border: 1px solid var(--color-border-strong);
-  background: var(--color-surface);
   color: var(--color-text-muted);
-  cursor: pointer;
-  touch-action: manipulation;
-  transition: all 0.15s;
-  white-space: nowrap;
 }
-.pt-recipe-tab:hover { border-color: var(--color-brand); color: var(--color-brand); }
-.pt-recipe-tab.active {
-  background: var(--color-brand);
-  border-color: var(--color-brand);
-  color: #fff;
-  font-weight: 600;
-}
-
-/* Unit toggle */
 .pt-unit-toggle {
   display: flex;
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-sm);
   overflow: hidden;
-  flex-shrink: 0;
 }
 .pt-unit-btn {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
-  padding: 5px 10px;
+  padding: 5px 12px;
   background: var(--color-surface);
   color: var(--color-text-muted);
   border: none;
@@ -2579,63 +2592,46 @@ html.dark .member-remove-confirm-text { color: #fca5a5; }
   transition: background 0.12s, color 0.12s;
 }
 .pt-unit-btn + .pt-unit-btn { border-left: 1px solid var(--color-border-strong); }
-.pt-unit-btn.active {
-  background: var(--color-brand);
-  color: #fff;
+.pt-unit-btn.active { background: var(--color-brand); color: #fff; }
+
+/* ── Member cards ── */
+.pt-member-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 
-/* Table wrapper — horizontal scroll on mobile, sticky first col */
-.pt-table-wrap {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-  padding-bottom: 2px;
+.pt-member-card {
+  padding: var(--space-md);
+  border-bottom: 0.5px solid var(--color-border);
 }
+.pt-member-card:last-child { border-bottom: none; }
 
-.pt-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
+.pt-member-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
 }
-
-/* Label column — sticky on scroll */
-.pt-label-col,
-.pt-label-cell {
-  position: sticky;
-  left: 0;
-  background: var(--color-surface);
-  z-index: 1;
-  min-width: 110px;
-  max-width: 130px;
+.pt-member-card-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
-html.dark .pt-label-col,
-html.dark .pt-label-cell { background: var(--color-surface); }
-
-/* Member column headers */
-.pt-header-row th { padding: 12px 10px 10px; vertical-align: bottom; }
-.pt-label-col { padding: 12px 10px 10px; }
-
-.pt-member-col {
-  text-align: center;
-  min-width: 100px;
-  padding: 12px 8px 10px;
-  border-bottom: 1.5px solid var(--color-border);
-}
-.pt-member-avatar { display: flex; justify-content: center; margin-bottom: 5px; }
-.pt-member-name {
-  font-size: 13px;
-  font-weight: 600;
+.pt-member-card-name {
+  font-size: 15px;
+  font-weight: 700;
   color: var(--color-text);
-  margin-bottom: 4px;
 }
 .pt-phase-badge {
   display: inline-block;
   font-size: 10px;
   font-weight: 600;
-  padding: 2px 7px;
+  padding: 2px 8px;
   border-radius: 999px;
-  margin-bottom: 4px;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.03em;
+  align-self: flex-start;
 }
 .pt-phase--bulk        { background: #dcfce7; color: #166534; }
 .pt-phase--deficit     { background: #fef9c3; color: #854d0e; }
@@ -2646,115 +2642,122 @@ html.dark .pt-phase--deficit     { background: #422006; color: #fde68a; }
 html.dark .pt-phase--maintenance { background: #1e3a5f; color: #93c5fd; }
 html.dark .pt-phase--custom      { background: #2e1065; color: #c4b5fd; }
 
-.pt-member-meta {
-  font-size: 10px;
-  color: var(--color-text-muted);
+.pt-member-card-cal {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-brand);
   white-space: nowrap;
+  text-align: right;
+}
+.pt-member-card-cal-lbl {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--color-text-muted);
 }
 
-/* Section label rows */
-.pt-section-label-row { background: var(--color-bg); }
-.pt-section-label {
+/* Ingredient grid */
+.pt-ing-section-label {
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.07em;
   color: var(--color-text-muted);
-  padding: 8px 10px 4px;
-  position: sticky;
-  left: 0;
+  margin-bottom: 8px;
+}
+.pt-ing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 8px;
+  margin-bottom: var(--space-sm);
+}
+.pt-ing-item {
   background: var(--color-bg);
-}
-
-/* Ingredient rows */
-.pt-ing-row td { padding: 8px 10px; border-bottom: 0.5px solid var(--color-border); }
-.pt-row-alt td { background: color-mix(in srgb, var(--color-brand) 4%, var(--color-surface)); }
-html.dark .pt-row-alt td { background: color-mix(in srgb, var(--color-brand) 6%, var(--color-surface)); }
-.pt-row-alt .pt-label-cell { background: color-mix(in srgb, var(--color-brand) 4%, var(--color-surface)); }
-html.dark .pt-row-alt .pt-label-cell { background: color-mix(in srgb, var(--color-brand) 6%, var(--color-surface)); }
-
-.pt-label-cell {
-  font-size: 12px;
-  color: var(--color-text-muted);
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-md);
   padding: 8px 10px;
-  white-space: nowrap;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
-.pt-ing-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--color-brand);
-  opacity: 0.5;
-  margin-right: 6px;
-  vertical-align: middle;
-}
-
-.pt-amount-cell {
-  text-align: center;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--color-text);
-  padding: 8px 10px;
-  border-bottom: 0.5px solid var(--color-border);
-  white-space: nowrap;
-}
-
-/* Macro rows */
-.pt-macro-row td { padding: 7px 10px; border-bottom: 0.5px solid var(--color-border); }
-.pt-macro-label {
-  font-size: 12px;
-  color: var(--color-text-muted);
-}
-.pt-macro-cell {
-  text-align: center;
-  font-size: 13px;
-  color: var(--color-text);
-  padding: 7px 10px;
-  border-bottom: 0.5px solid var(--color-border);
-  white-space: nowrap;
-}
-.pt-macro--cal {
-  font-weight: 700;
-  color: var(--color-brand) !important;
-  font-size: 14px !important;
-}
-.pt-macro--protein { font-weight: 600; color: #3b82f6 !important; }
-
-/* Divider */
-.pt-divider-row td {
-  height: 1px;
-  background: var(--color-border);
-  padding: 0;
-}
-
-/* Week total row */
-.pt-total-row td {
-  padding: 10px 10px;
-  background: color-mix(in srgb, var(--color-brand) 6%, var(--color-surface));
-  border-top: 1px solid var(--color-border);
-}
-.pt-total-label {
+.pt-ing-name {
   font-size: 11px;
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+.pt-ing-amount {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text);
+  letter-spacing: -0.02em;
+}
+
+/* Macro strip */
+.pt-macro-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: var(--space-sm);
+}
+.pt-macro-chip {
+  background: var(--color-bg);
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 7px 6px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pt-macro-chip--cal { border-color: var(--color-brand); }
+.pt-macro-chip--protein { border-color: #3b82f6; }
+.pt-macro-chip-val {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1;
+}
+.pt-macro-chip--cal .pt-macro-chip-val  { color: var(--color-brand); }
+.pt-macro-chip--protein .pt-macro-chip-val { color: #3b82f6; }
+.pt-macro-chip-lbl {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+/* Week total */
+.pt-week-total {
+  background: color-mix(in srgb, var(--color-brand) 5%, var(--color-surface));
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 9px 12px;
+}
+.pt-week-label {
+  display: block;
+  font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.07em;
+  color: var(--color-text-muted);
+  margin-bottom: 6px;
+}
+.pt-week-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+.pt-week-item {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 12px;
+}
+.pt-week-ing {
   color: var(--color-text-muted);
 }
-.pt-total-cell {
-  text-align: center;
-  vertical-align: top;
-}
-.pt-total-line {
-  display: block;
-  font-size: 11px;
-  color: var(--color-text-muted);
-  white-space: nowrap;
-  line-height: 1.7;
-}
-.pt-total-line strong {
+.pt-week-item strong {
   font-weight: 700;
   color: var(--color-text);
+  font-size: 13px;
 }
 
 /* Visually hidden — for screen readers */

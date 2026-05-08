@@ -2490,6 +2490,9 @@ function toggleGroceryItem(key, checkEl) {
    ============================================================ */
 
 function openMacroCalc() {
+  // Rebuild options from live MEMBERS so added/removed members are reflected
+  const select = document.getElementById('calc-member-select');
+  select.innerHTML = MEMBERS.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
   _calc.memberId = MEMBERS[0].id;
   _syncCalcModal();
   document.getElementById('macro-calc-modal').classList.add('open');

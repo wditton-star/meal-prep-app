@@ -70,9 +70,10 @@ function generateInitials(name) {
 let MEMBERS = loadMembers();
 
 const PHASES = [
-  { id: 'deficit',     label: 'Deficit',  factor: 0.8 },
-  { id: 'maintenance', label: 'Maintain', factor: 1.0 },
-  { id: 'bulking',     label: 'Bulk',     factor: 1.2 },
+  { id: 'deficit',     label: 'Deficit',  factor: 0.8  },
+  { id: 'maintenance', label: 'Maintain', factor: 1.0  },
+  { id: 'bulking',     label: 'Bulk',     factor: 1.2  },
+  { id: 'custom',      label: 'Custom',   factor: null },
 ];
 
 function scalePhase(maintenance, factor) {
@@ -495,15 +496,36 @@ function saveMemberPhases() {
   localStorage.setItem('prepTareMemberPhases', JSON.stringify(state.memberPhases));
 }
 
+function initMemberMacros(maintenance) {
+  return Object.fromEntries(PHASES.map(p => [
+    p.id,
+    p.factor !== null ? scalePhase(maintenance, p.factor) : { ...maintenance },
+  ]));
+}
+
 function loadMemberMacros() {
   try {
     const raw = localStorage.getItem('prepTareMemberMacros');
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      // Ensure every member has every phase key (handles newly added phases like 'custom')
+      for (const m of MEMBERS) {
+        if (!parsed[m.id]) {
+          parsed[m.id] = initMemberMacros(m.maintenance);
+        } else {
+          for (const p of PHASES) {
+            if (!parsed[m.id][p.id]) {
+              parsed[m.id][p.id] = p.factor !== null
+                ? scalePhase(m.maintenance, p.factor)
+                : { ...parsed[m.id]['maintenance'] || m.maintenance };
+            }
+          }
+        }
+      }
+      return parsed;
+    }
   } catch (_) {}
-  return Object.fromEntries(MEMBERS.map(m => [
-    m.id,
-    Object.fromEntries(PHASES.map(p => [p.id, scalePhase(m.maintenance, p.factor)])),
-  ]));
+  return Object.fromEntries(MEMBERS.map(m => [m.id, initMemberMacros(m.maintenance)]));
 }
 
 function saveMemberMacros() {
@@ -1319,20 +1341,16 @@ function renderMacroTargets() {
       >${p.label}</button>`;
     }).join('');
 
-    const anyOverridden = FIELDS.some(f => macros[f.key] !== calculated[f.key]);
+    const isCustom = currentPhase === 'custom';
 
-    const macroFields = FIELDS.map(f => {
-      const isOverridden = macros[f.key] !== calculated[f.key];
-      return `
-        <div class="macro-field${isOverridden ? ' macro-field--overridden' : ''}">
-          <label>${f.label}${isOverridden ? '<span class="override-dot" title="Manually set"></span>' : ''}</label>
-          <input type="number" value="${macros[f.key]}"
-            class="${isOverridden ? 'input--overridden' : ''}"
-            onchange="saveMacroOverride('${member.id}', '${f.key}', this.value)"
-            ${excluded ? 'disabled' : ''} />
-        </div>
-      `;
-    }).join('');
+    const macroFields = FIELDS.map(f => `
+      <div class="macro-field">
+        <label>${f.label}</label>
+        <input type="number" value="${macros[f.key]}"
+          onchange="saveMacroOverride('${member.id}', '${f.key}', this.value)"
+          ${excluded ? 'disabled' : ''} />
+      </div>
+    `).join('');
 
     const pending = state.pendingMacroScale;
     const showPrompt = !excluded && pending && pending.memberId === member.id && pending.phase === currentPhase;
@@ -1354,7 +1372,7 @@ function renderMacroTargets() {
       <div class="macro-scale-prompt macro-propagate-prompt">
         <span class="macro-scale-text">Apply ×${propagate.scale.toFixed(2)} to other phases?</span>
         <div class="macro-propagate-phases">
-          ${PHASES.filter(ph => ph.id !== propagate.currentPhase).map(ph => {
+          ${PHASES.filter(ph => ph.id !== propagate.currentPhase && ph.id !== 'custom').map(ph => {
             const on = propagate.targetPhases.includes(ph.id);
             return `<button class="macro-phase-chip${on ? ' macro-phase-chip--on' : ''}"
               onclick="togglePropagatePhase('${ph.id}')">${ph.label}</button>`;
@@ -1395,7 +1413,7 @@ function renderMacroTargets() {
         ${excluded ? '' : `
           <div class="macro-inputs">
             ${macroFields}
-            ${anyOverridden ? `<button class="macro-reset-all-btn" onclick="resetAllMacros('${member.id}')" title="Reset all to calculated">↺</button>` : ''}
+            ${isCustom ? `<button class="macro-reset-all-btn" onclick="resetAllMacros('${member.id}')" title="Clear custom — return to Maintain">↺</button>` : ''}
           </div>
         `}
         ${excludePrompt}
@@ -1432,20 +1450,29 @@ function setMemberPhase(memberId, phase) {
 }
 
 function getCalculatedMacros(memberId, phase) {
+  if (phase === 'custom') return null;
   const member = MEMBERS.find(m => m.id === memberId);
   const phaseObj = PHASES.find(p => p.id === phase);
   return scalePhase(member.maintenance, phaseObj.factor);
 }
 
 function saveMacroOverride(memberId, field, value) {
-  const phase = state.memberPhases[memberId];
-  const oldVal = state.memberMacros[memberId][phase][field];
+  const currentPhase = state.memberPhases[memberId];
   const newVal = Math.round(parseFloat(value)) || 0;
-  state.memberMacros[memberId][phase][field] = newVal;
+
+  // Editing from a standard phase copies its values to custom and switches there
+  if (currentPhase !== 'custom') {
+    state.memberMacros[memberId]['custom'] = { ...state.memberMacros[memberId][currentPhase] };
+    state.memberPhases[memberId] = 'custom';
+    saveMemberPhases();
+  }
+
+  const oldVal = state.memberMacros[memberId]['custom'][field];
+  state.memberMacros[memberId]['custom'][field] = newVal;
   saveMemberMacros();
 
   if (oldVal > 0 && newVal > 0 && newVal !== oldVal) {
-    state.pendingMacroScale = { memberId, phase, field, scale: newVal / oldVal };
+    state.pendingMacroScale = { memberId, phase: 'custom', field, scale: newVal / oldVal };
   } else {
     state.pendingMacroScale = null;
   }
@@ -1500,11 +1527,13 @@ function dismissPhasePropagate() {
 }
 
 function resetAllMacros(memberId) {
-  const phase = state.memberPhases[memberId];
-  const calc = getCalculatedMacros(memberId, phase);
-  state.memberMacros[memberId][phase] = { ...calc };
+  // Reset custom phase back to maintenance calculated values and switch phase
+  state.memberPhases[memberId] = 'maintenance';
+  const calc = getCalculatedMacros(memberId, 'maintenance');
+  state.memberMacros[memberId]['custom'] = { ...calc };
   if (state.pendingMacroScale?.memberId === memberId) state.pendingMacroScale = null;
   if (state.pendingPhasePropagate?.memberId === memberId) state.pendingPhasePropagate = null;
+  saveMemberPhases();
   saveMemberMacros();
   renderAll();
 }
@@ -1554,9 +1583,7 @@ function addMember() {
   const maintenance = { cal: 2000, protein: 150, carbs: 200, fat: 67 };
   MEMBERS.push({ id, name: 'New member', initials: 'NM', avatarClass: nextColor, maintenance });
   state.memberPhases[id] = 'maintenance';
-  state.memberMacros[id] = Object.fromEntries(
-    PHASES.map(p => [p.id, scalePhase(maintenance, p.factor)])
-  );
+  state.memberMacros[id] = initMemberMacros(maintenance);
   saveMembers();
   saveMemberPhases();
   saveMemberMacros();
@@ -2242,8 +2269,8 @@ function renderPortionTable() {
   const memberHeaders = members.map(m => {
     const phase     = state.memberPhases[m.id] || 'maintenance';
     const macros    = state.memberMacros[m.id]?.[phase] || m.maintenance;
-    const label     = phase === 'bulking' ? 'Bulk' : phase === 'deficit' ? 'Deficit' : 'Maintain';
-    const phaseClass = phase === 'bulking' ? 'pt-phase--bulk' : phase === 'deficit' ? 'pt-phase--deficit' : 'pt-phase--maintenance';
+    const label     = phase === 'bulking' ? 'Bulk' : phase === 'deficit' ? 'Deficit' : phase === 'custom' ? 'Custom' : 'Maintain';
+    const phaseClass = phase === 'bulking' ? 'pt-phase--bulk' : phase === 'deficit' ? 'pt-phase--deficit' : phase === 'custom' ? 'pt-phase--custom' : 'pt-phase--maintenance';
     const dayCount  = instances.filter(i => i.members.includes(m.id)).length;
     const dayLabel  = `${dayCount} day${dayCount !== 1 ? 's' : ''}`;
     return `

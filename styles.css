@@ -2594,6 +2594,105 @@ html.dark .member-remove-confirm-text { color: #fca5a5; }
 .pt-unit-btn + .pt-unit-btn { border-left: 1px solid var(--color-border-strong); }
 .pt-unit-btn.active { background: var(--color-brand); color: #fff; }
 
+/* ── Mode toggle ── */
+.pt-mode-row {
+  padding: 10px var(--space-md);
+  border-bottom: 0.5px solid var(--color-border);
+}
+.pt-mode-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.pt-mode-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 8px;
+  border: 1.5px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.pt-mode-btn.active {
+  border-color: var(--color-brand);
+  background: color-mix(in srgb, var(--color-brand) 10%, var(--color-surface));
+}
+.pt-mode-btn-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1;
+}
+.pt-mode-btn.active .pt-mode-btn-title { color: var(--color-brand); }
+.pt-mode-btn-sub {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+.pt-mode-btn.active .pt-mode-btn-sub { color: var(--color-brand); opacity: 0.8; }
+
+/* ── Meals/day stepper (macro mode) ── */
+.pt-meals-stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.pt-meals-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-brand);
+  background: transparent;
+  color: var(--color-brand);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: background 0.12s, color 0.12s;
+}
+.pt-meals-btn:hover { background: var(--color-brand); color: #fff; }
+.pt-meals-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  min-width: 36px;
+}
+.pt-meals-val {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-brand);
+  line-height: 1;
+}
+.pt-meals-lbl {
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  line-height: 1;
+}
+
+/* ── Macro sublabel (macro mode target hint) ── */
+.pt-macro-sublabel {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  text-align: center;
+  margin-top: -4px;
+  margin-bottom: var(--space-sm);
+  font-weight: 500;
+}
+.pt-macro-strip--target .pt-macro-chip--cal { border-color: var(--color-brand); }
+.pt-macro-strip--target .pt-macro-chip--protein { border-color: #3b82f6; }
+
 /* ── Member cards ── */
 .pt-member-cards {
   display: flex;

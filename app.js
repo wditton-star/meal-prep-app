@@ -584,9 +584,9 @@ const RECIPES = [
       { amount: 0,   unit: '',      name: 'salt and pepper' },
     ],
     portionIngredients: [
-      { name: 'Chicken breast', gramsPerServing: 227, displayUnit: 'oz' },
-      { name: 'Rice (cooked)',  gramsPerServing: 186, displayUnit: 'cups', gramsPerCup: 186 },
-      { name: 'Vegetables',     gramsPerServing: 155, displayUnit: 'cups', gramsPerCup: 91 },
+      { name: 'Chicken breast', gramsPerServing: 227, displayUnit: 'oz',                          macroType: 'protein'  },
+      { name: 'Rice (cooked)',  gramsPerServing: 186, displayUnit: 'cups', gramsPerCup: 186,       macroType: 'carbs'    },
+      { name: 'Vegetables',     gramsPerServing: 155, displayUnit: 'cups', gramsPerCup: 91,        macroType: 'calories' },
     ],
   },
   {
@@ -606,8 +606,8 @@ const RECIPES = [
       { amount: 1,   unit: 'tsp',  name: 'fresh ginger' },
     ],
     portionIngredients: [
-      { name: 'Ground turkey', gramsPerServing: 170, displayUnit: 'oz' },
-      { name: 'Mixed veg',     gramsPerServing: 170, displayUnit: 'cups', gramsPerCup: 90 },
+      { name: 'Ground turkey', gramsPerServing: 170, displayUnit: 'oz',                          macroType: 'protein'  },
+      { name: 'Mixed veg',     gramsPerServing: 170, displayUnit: 'cups', gramsPerCup: 90,        macroType: 'calories' },
     ],
   },
   {
@@ -625,8 +625,8 @@ const RECIPES = [
       { amount: 0,   unit: '',     name: 'salt and pepper' },
     ],
     portionIngredients: [
-      { name: 'Salmon fillet',  gramsPerServing: 170, displayUnit: 'oz' },
-      { name: 'Sweet potato',   gramsPerServing: 150, displayUnit: 'oz' },
+      { name: 'Salmon fillet', gramsPerServing: 170, displayUnit: 'oz', macroType: 'protein' },
+      { name: 'Sweet potato',  gramsPerServing: 150, displayUnit: 'oz', macroType: 'carbs'   },
     ],
   },
   {
@@ -645,9 +645,9 @@ const RECIPES = [
       { amount: 0,   unit: '',     name: 'salt and pepper' },
     ],
     portionIngredients: [
-      { name: 'Ground beef',   gramsPerServing: 170, displayUnit: 'oz' },
-      { name: 'Rice (cooked)', gramsPerServing: 186, displayUnit: 'cups', gramsPerCup: 186 },
-      { name: 'Toppings',      gramsPerServing: 95,  displayUnit: 'oz' },
+      { name: 'Ground beef',   gramsPerServing: 170, displayUnit: 'oz',                          macroType: 'protein'  },
+      { name: 'Rice (cooked)', gramsPerServing: 186, displayUnit: 'cups', gramsPerCup: 186,       macroType: 'carbs'    },
+      { name: 'Toppings',      gramsPerServing: 95,  displayUnit: 'oz',                           macroType: 'calories' },
     ],
   },
 ];
@@ -1112,6 +1112,16 @@ function loadFavorites() {
 function saveFavorites() {
   localStorage.setItem(FAVORITES_KEY, JSON.stringify([...state.favoriteRecipes]));
 }
+function loadMemberMealsPerDay() {
+  try {
+    const raw = localStorage.getItem('preptareMealsPerDay');
+    if (raw) return JSON.parse(raw);
+  } catch (_) {}
+  return {};
+}
+function saveMemberMealsPerDay() {
+  localStorage.setItem('preptareMealsPerDay', JSON.stringify(state.memberMealsPerDay));
+}
 function toggleFavorite(recipeId, event) {
   event.stopPropagation();
   if (state.favoriteRecipes.has(recipeId)) state.favoriteRecipes.delete(recipeId);
@@ -1200,6 +1210,8 @@ const state = {
   favoriteRecipes:       loadFavorites(),
   recipeFilter:          'all',
   portionUnit:           localStorage.getItem('preptarePortionUnit') || 'imperial',
+  portionMode:           localStorage.getItem('preptarePortionMode') || 'simple',
+  memberMealsPerDay:     loadMemberMealsPerDay(),
   portionRecipeId:       null,
 };
 
@@ -2206,6 +2218,38 @@ function stepPortionRecipe(delta) {
   setPortionRecipe(next);
 }
 
+function setPortionMode(mode) {
+  state.portionMode = mode;
+  localStorage.setItem('preptarePortionMode', mode);
+  renderPortionTable();
+}
+
+function setMemberMealsPerDay(memberId, delta) {
+  const current = state.memberMealsPerDay[memberId] || 3;
+  state.memberMealsPerDay[memberId] = Math.max(1, Math.min(6, current + delta));
+  saveMemberMealsPerDay();
+  renderPortionTable();
+}
+
+function getIngredientScaleFactor(memberId, ing, recipe) {
+  if (state.portionMode === 'simple' || !ing.macroType || ing.macroType === 'calories') {
+    return getMemberScaleFactor(memberId);
+  }
+  const phase = state.memberPhases[memberId] || 'maintenance';
+  const macros = state.memberMacros[memberId]?.[phase] || MEMBERS.find(m => m.id === memberId).maintenance;
+  const mealsPerDay = state.memberMealsPerDay[memberId] || 3;
+  if (ing.macroType === 'protein' && recipe.protein > 0) {
+    return (macros.protein / mealsPerDay) / recipe.protein;
+  }
+  if (ing.macroType === 'carbs' && recipe.carbs > 0) {
+    return (macros.carbs / mealsPerDay) / recipe.carbs;
+  }
+  if (ing.macroType === 'fat' && recipe.fat > 0) {
+    return (macros.fat / mealsPerDay) / recipe.fat;
+  }
+  return getMemberScaleFactor(memberId);
+}
+
 function fmtCupFraction(cups) {
   const q = Math.round(cups * 4) / 4;
   const whole = Math.floor(q);
@@ -2237,7 +2281,8 @@ function fmtIngredientWeekTotal(gramsPerMeal, ing, unit, days) {
 
 /**
  * Stage 5 — Per-meal, per-member portion breakdown from calendar.
- * Layout: recipe prev/next nav → vertical member cards (no horizontal scroll).
+ * Layout: recipe prev/next nav → mode toggle → unit toggle → vertical member cards.
+ * Simple mode: calorie-proportional scaling. Macro mode: per-ingredient macro targeting.
  */
 function renderPortionTable() {
   const card = document.getElementById('portion-card');
@@ -2260,13 +2305,14 @@ function renderPortionTable() {
   if (!state.portionRecipeId || !planRecipeIds.includes(state.portionRecipeId)) {
     state.portionRecipeId = planRecipeIds[0];
   }
-  const recipeIdx = planRecipeIds.indexOf(state.portionRecipeId);
+  const recipeIdx  = planRecipeIds.indexOf(state.portionRecipeId);
   const { recipe, instances } = plan.recipes[recipeIdx];
   const recipeCount = plan.recipes.length;
 
-  const memberIds  = [...new Set(instances.flatMap(i => i.members))];
-  const members    = memberIds.map(mid => MEMBERS.find(m => m.id === mid)).filter(Boolean);
-  const isGrams    = state.portionUnit === 'grams';
+  const memberIds   = [...new Set(instances.flatMap(i => i.members))];
+  const members     = memberIds.map(mid => MEMBERS.find(m => m.id === mid)).filter(Boolean);
+  const isGrams     = state.portionUnit === 'grams';
+  const isMacro     = state.portionMode === 'macro';
   const portionIngs = recipe.portionIngredients || [];
 
   /* ── Recipe nav bar ── */
@@ -2282,6 +2328,25 @@ function renderPortionTable() {
       <button class="pt-nav-arrow${recipeCount < 2 ? ' pt-nav-arrow--hidden' : ''}"
         ontouchend="stepPortionRecipe(1);event.preventDefault()"
         onclick="stepPortionRecipe(1)" aria-label="Next recipe">&#8594;</button>
+    </div>`;
+
+  /* ── Mode toggle ── */
+  const modeToggle = `
+    <div class="pt-mode-row">
+      <div class="pt-mode-toggle">
+        <button class="pt-mode-btn${!isMacro ? ' active' : ''}"
+          ontouchend="setPortionMode('simple');event.preventDefault()"
+          onclick="setPortionMode('simple')">
+          <span class="pt-mode-btn-title">Simple</span>
+          <span class="pt-mode-btn-sub">Calorie-scaled</span>
+        </button>
+        <button class="pt-mode-btn${isMacro ? ' active' : ''}"
+          ontouchend="setPortionMode('macro');event.preventDefault()"
+          onclick="setPortionMode('macro')">
+          <span class="pt-mode-btn-title">Macro</span>
+          <span class="pt-mode-btn-sub">Target-matched</span>
+        </button>
+      </div>
     </div>`;
 
   /* ── Unit toggle ── */
@@ -2300,18 +2365,35 @@ function renderPortionTable() {
 
   /* ── Per-member cards ── */
   const memberCards = members.map(m => {
-    const phase     = state.memberPhases[m.id] || 'maintenance';
-    const macros    = state.memberMacros[m.id]?.[phase] || m.maintenance;
-    const scale     = getMemberScaleFactor(m.id);
-    const dayCount  = instances.filter(i => i.members.includes(m.id)).length;
-    const phaseLabel = phase === 'bulking' ? 'Bulk' : phase === 'deficit' ? 'Deficit' : phase === 'custom' ? 'Custom' : 'Maintain';
-    const phaseClass = phase === 'bulking' ? 'pt-phase--bulk' : phase === 'deficit' ? 'pt-phase--deficit' : phase === 'custom' ? 'pt-phase--custom' : 'pt-phase--maintenance';
+    const phase       = state.memberPhases[m.id] || 'maintenance';
+    const macros      = state.memberMacros[m.id]?.[phase] || m.maintenance;
+    const mealsPerDay = state.memberMealsPerDay[m.id] || 3;
+    const calScale    = getMemberScaleFactor(m.id);
+    const dayCount    = instances.filter(i => i.members.includes(m.id)).length;
+    const phaseLabel  = phase === 'bulking' ? 'Bulk' : phase === 'deficit' ? 'Deficit' : phase === 'custom' ? 'Custom' : 'Maintain';
+    const phaseClass  = phase === 'bulking' ? 'pt-phase--bulk' : phase === 'deficit' ? 'pt-phase--deficit' : phase === 'custom' ? 'pt-phase--custom' : 'pt-phase--maintenance';
+
+    /* Meals/day stepper (macro mode only) */
+    const mealsStepper = `
+      <div class="pt-meals-stepper">
+        <button class="pt-meals-btn"
+          ontouchend="setMemberMealsPerDay('${m.id}',-1);event.preventDefault()"
+          onclick="setMemberMealsPerDay('${m.id}',-1)" aria-label="Fewer meals">−</button>
+        <div class="pt-meals-display">
+          <span class="pt-meals-val">${mealsPerDay}</span>
+          <span class="pt-meals-lbl">meals/day</span>
+        </div>
+        <button class="pt-meals-btn"
+          ontouchend="setMemberMealsPerDay('${m.id}',1);event.preventDefault()"
+          onclick="setMemberMealsPerDay('${m.id}',1)" aria-label="More meals">+</button>
+      </div>`;
 
     /* Ingredient grid */
     const ingGrid = portionIngs.length ? `
       <div class="pt-ing-section-label">Ingredients per meal</div>
       <div class="pt-ing-grid">
         ${portionIngs.map(ing => {
+          const scale = getIngredientScaleFactor(m.id, ing, recipe);
           const grams = ing.gramsPerServing * scale;
           return `
             <div class="pt-ing-item">
@@ -2322,12 +2404,20 @@ function renderPortionTable() {
       </div>` : '';
 
     /* Macro strip */
-    const cal     = Math.round((recipe.calories || 0) * scale);
-    const protein = Math.round((recipe.protein  || 0) * scale);
-    const carbs   = Math.round((recipe.carbs    || 0) * scale);
-    const fat     = Math.round((recipe.fat      || 0) * scale);
+    let cal, protein, carbs, fat;
+    if (isMacro) {
+      cal     = Math.round(macros.cal     / mealsPerDay);
+      protein = Math.round(macros.protein / mealsPerDay);
+      carbs   = Math.round(macros.carbs   / mealsPerDay);
+      fat     = Math.round(macros.fat     / mealsPerDay);
+    } else {
+      cal     = Math.round((recipe.calories || 0) * calScale);
+      protein = Math.round((recipe.protein  || 0) * calScale);
+      carbs   = Math.round((recipe.carbs    || 0) * calScale);
+      fat     = Math.round((recipe.fat      || 0) * calScale);
+    }
     const macroStrip = `
-      <div class="pt-macro-strip">
+      <div class="pt-macro-strip${isMacro ? ' pt-macro-strip--target' : ''}">
         <div class="pt-macro-chip pt-macro-chip--cal">
           <span class="pt-macro-chip-val">${cal}</span>
           <span class="pt-macro-chip-lbl">cal</span>
@@ -2344,10 +2434,12 @@ function renderPortionTable() {
           <span class="pt-macro-chip-val">${fat}g</span>
           <span class="pt-macro-chip-lbl">fat</span>
         </div>
-      </div>`;
+      </div>
+      ${isMacro ? `<div class="pt-macro-sublabel">Target per meal &nbsp;·&nbsp; ${macros.cal.toLocaleString()} cal/day ÷ ${mealsPerDay}</div>` : ''}`;
 
     /* Week total */
     const weekLines = portionIngs.map(ing => {
+      const scale = getIngredientScaleFactor(m.id, ing, recipe);
       const gramsPerMeal = ing.gramsPerServing * scale;
       return `<span class="pt-week-item"><span class="pt-week-ing">${ing.name}</span><strong>${fmtIngredientWeekTotal(gramsPerMeal, ing, state.portionUnit, dayCount)}</strong></span>`;
     }).join('');
@@ -2365,7 +2457,10 @@ function renderPortionTable() {
             <span class="pt-member-card-name">${m.name}</span>
             <span class="pt-phase-badge ${phaseClass}">${phaseLabel}</span>
           </div>
-          <div class="pt-member-card-cal">${macros.cal.toLocaleString()}<span class="pt-member-card-cal-lbl"> cal/day</span></div>
+          ${isMacro
+            ? mealsStepper
+            : `<div class="pt-member-card-cal">${macros.cal.toLocaleString()}<span class="pt-member-card-cal-lbl"> cal/day</span></div>`
+          }
         </div>
         ${ingGrid}
         ${macroStrip}
@@ -2375,6 +2470,7 @@ function renderPortionTable() {
 
   card.innerHTML = `
     ${recipeNav}
+    ${modeToggle}
     ${unitToggle}
     <div class="pt-member-cards">${memberCards}</div>`;
 }

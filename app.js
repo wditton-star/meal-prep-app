@@ -2359,23 +2359,24 @@ function setMemberMealsPerDay(memberId, delta) {
   renderPortionTable();
 }
 
-function setMemberPortionScale(memberId, rawValue) {
-  state.memberPortionScale[memberId] = parseInt(rawValue, 10) / 100;
-  saveMemberPortionScale();
-}
-
-function resetPortionScale(memberId) {
-  state.memberPortionScale[memberId] = 1.0;
+function setMemberPortionScale(memberId, recipeId, rawValue) {
+  state.memberPortionScale[`${memberId}|${recipeId}`] = parseInt(rawValue, 10) / 100;
   saveMemberPortionScale();
   renderPortionTable();
 }
 
-function updatePortionScaleDisplay(memberId, rawValue) {
+function resetPortionScale(memberId, recipeId) {
+  state.memberPortionScale[`${memberId}|${recipeId}`] = 1.0;
+  saveMemberPortionScale();
+  renderPortionTable();
+}
+
+function updatePortionScaleDisplay(memberId, recipeId, rawValue) {
   const portionScale = parseInt(rawValue, 10) / 100;
-  state.memberPortionScale[memberId] = portionScale;
+  state.memberPortionScale[`${memberId}|${recipeId}`] = portionScale;
 
   const plan = buildWeekPlan();
-  const recipeEntry = plan.recipes.find(r => r.recipe.id === state.portionRecipeId);
+  const recipeEntry = plan.recipes.find(r => r.recipe.id === recipeId);
   if (!recipeEntry) return;
   const { recipe, instances } = recipeEntry;
 
@@ -2586,7 +2587,7 @@ function renderPortionTable() {
     const macros       = state.memberMacros[m.id]?.[phase] || m.maintenance;
     const mealsPerDay  = state.memberMealsPerDay[m.id] || 3;
     const calScale     = getMemberScaleFactor(m.id);
-    const portionScale = state.memberPortionScale[m.id] ?? 1.0;
+    const portionScale = state.memberPortionScale[`${m.id}|${recipe.id}`] ?? 1.0;
     const dayCount     = instances.filter(i => i.members.includes(m.id)).length;
     const phaseLabel   = phase === 'bulking' ? 'Bulk' : phase === 'deficit' ? 'Deficit' : phase === 'custom' ? 'Custom' : 'Maintain';
     const phaseClass   = phase === 'bulking' ? 'pt-phase--bulk' : phase === 'deficit' ? 'pt-phase--deficit' : phase === 'custom' ? 'pt-phase--custom' : 'pt-phase--maintenance';
@@ -2668,14 +2669,14 @@ function renderPortionTable() {
           <span class="pt-slider-val" id="pt-slider-val-${m.id}">${cal} cal · ${protein}g protein</span>
           ${hasCustomScale ? `
             <button class="pt-slider-reset"
-              ontouchend="resetPortionScale('${m.id}');event.preventDefault()"
-              onclick="resetPortionScale('${m.id}')">Reset</button>` : ''}
+              ontouchend="resetPortionScale('${m.id}', '${recipe.id}');event.preventDefault()"
+              onclick="resetPortionScale('${m.id}', '${recipe.id}')">Reset</button>` : ''}
         </div>
         <input type="range" class="pt-slider"
-          min="${sliderMin}" max="${sliderMax}" step="5"
+          min="${sliderMin}" max="${sliderMax}" step="1"
           value="${sliderVal}"
-          oninput="updatePortionScaleDisplay('${m.id}', this.value)"
-          onchange="setMemberPortionScale('${m.id}', this.value)"
+          oninput="updatePortionScaleDisplay('${m.id}', '${recipe.id}', this.value)"
+          onchange="setMemberPortionScale('${m.id}', '${recipe.id}', this.value)"
           ontouchstart="event.stopPropagation()">
         <div class="pt-slider-ticks">
           <span>${Math.round(baseCal * 0.5)} cal</span>

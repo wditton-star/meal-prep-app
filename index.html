@@ -74,10 +74,11 @@
   <nav class="stage-nav" id="stage-nav">
     <div class="stage-nav-inner">
     <button class="nav-btn active" data-stage="0">1 · Plan</button>
-    <button class="nav-btn" data-stage="1">2 · Grocery List</button>
-    <button class="nav-btn" data-stage="2">3 · Shop</button>
-    <button class="nav-btn" data-stage="3">4 · Prep</button>
-    <button class="nav-btn" data-stage="4">5 · Store & Portion</button>
+    <button class="nav-btn" data-stage="1">2 · Portion</button>
+    <button class="nav-btn" data-stage="2">3 · Grocery</button>
+    <button class="nav-btn" data-stage="3">4 · Shop</button>
+    <button class="nav-btn" data-stage="4">5 · Prep</button>
+    <button class="nav-btn" data-stage="5">6 · Store</button>
     </div>
   </nav>
 
@@ -152,13 +153,30 @@
     </section><!-- /stage-0 -->
 
     <!-- ==========================================
-         STAGE 2: GROCERY LIST
+         STAGE 2: PORTION
          ========================================== -->
     <section class="stage" id="stage-1">
       <div class="stage-header">
-        <div class="stage-icon">🛒</div>
+        <div class="stage-icon">🍽️</div>
         <div>
           <div class="stage-label">Stage 2</div>
+          <h2 class="stage-title">Set Portions</h2>
+        </div>
+      </div>
+
+      <div class="card" id="portion-card">
+        <!-- Rendered by renderPortionTable() -->
+      </div>
+    </section><!-- /stage-1 -->
+
+    <!-- ==========================================
+         STAGE 3: GROCERY LIST
+         ========================================== -->
+    <section class="stage" id="stage-2">
+      <div class="stage-header">
+        <div class="stage-icon">🛒</div>
+        <div>
+          <div class="stage-label">Stage 3</div>
           <h2 class="stage-title">Build the Grocery List</h2>
         </div>
       </div>
@@ -186,16 +204,16 @@
       <!-- Grocery list sections are injected by app.js from GROCERY_LIST -->
       <div class="card" id="grocery-list-container">
       </div>
-    </section><!-- /stage-1 -->
+    </section><!-- /stage-2 -->
 
     <!-- ==========================================
-         STAGE 3: SHOP
+         STAGE 4: SHOP
          ========================================== -->
-    <section class="stage" id="stage-2">
+    <section class="stage" id="stage-3">
       <div class="stage-header">
         <div class="stage-icon">🏪</div>
         <div>
-          <div class="stage-label">Stage 3</div>
+          <div class="stage-label">Stage 4</div>
           <h2 class="stage-title">Shop Efficiently</h2>
         </div>
       </div>
@@ -233,16 +251,16 @@
           </div>
         </div>
       </div>
-    </section><!-- /stage-2 -->
+    </section><!-- /stage-3 -->
 
     <!-- ==========================================
-         STAGE 4: PREP
+         STAGE 5: PREP
          ========================================== -->
-    <section class="stage" id="stage-3">
+    <section class="stage" id="stage-4">
       <div class="stage-header">
         <div class="stage-icon">🍳</div>
         <div>
-          <div class="stage-label">Stage 4</div>
+          <div class="stage-label">Stage 5</div>
           <h2 class="stage-title">Prep in Batch</h2>
         </div>
       </div>
@@ -259,24 +277,21 @@
           <!-- Steps injected by app.js -->
         </div>
       </div>
-    </section><!-- /stage-3 -->
+    </section><!-- /stage-4 -->
 
     <!-- ==========================================
-         STAGE 5: STORE & PORTION
+         STAGE 6: STORE
          ========================================== -->
-    <section class="stage" id="stage-4">
+    <section class="stage" id="stage-5">
       <div class="stage-header">
         <div class="stage-icon">📦</div>
         <div>
-          <div class="stage-label">Stage 5</div>
-          <h2 class="stage-title">Store & Portion</h2>
+          <div class="stage-label">Stage 6</div>
+          <h2 class="stage-title">Store</h2>
         </div>
       </div>
 
-      <div class="card" id="portion-card">
-        <!-- Rendered by renderPortionTable() -->
-      </div>
-
+      <!-- Container & storage guide (static for now; enriched in next release) -->
       <div class="card">
         <div class="card-header">Container &amp; storage guide</div>
         <div class="summary-rows">
@@ -289,26 +304,11 @@
         </div>
       </div>
 
-      <!-- Weekly totals -->
-      <div class="metrics-grid">
-        <div class="metric-card">
-          <div class="metric-label">Meals prepped</div>
-          <div class="metric-value">28</div>
-        </div>
-        <div class="metric-card">
-          <div class="metric-label">Containers</div>
-          <div class="metric-value">16</div>
-        </div>
-        <div class="metric-card">
-          <div class="metric-label">Prep time</div>
-          <div class="metric-value">2.5 hrs</div>
-        </div>
-        <div class="metric-card">
-          <div class="metric-label">Cost / meal</div>
-          <div class="metric-value">$4.43</div>
-        </div>
+      <!-- Fridge map — rendered by renderFridgeMap() -->
+      <div class="card" id="fridge-map-card">
+        <!-- Coming soon: smart container sizing + fridge layout map -->
       </div>
-    </section><!-- /stage-4 -->
+    </section><!-- /stage-5 -->
 
   </main><!-- /main-content -->
 

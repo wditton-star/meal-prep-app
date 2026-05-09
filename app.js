@@ -122,6 +122,13 @@ function categorizeIngredient(name) {
   return 'Other';
 }
 
+function getIngredientMacroType(name) {
+  const n = name.toLowerCase();
+  if (/\b(chicken|turkey|beef|salmon|shrimp|tuna|pork|lamb|steak|sausage|tofu)\b|ground /.test(n)) return 'protein';
+  if (/\b(rice|pasta|noodle|oat|quinoa|bread|tortilla|couscous|barley)\b|sweet potato/.test(n)) return 'carbs';
+  return 'calories';
+}
+
 function fmtIngQty(amount, unit) {
   if (!amount) return unit ? `(${unit})` : '—';
   let v = amount >= 10 ? Math.round(amount) : Math.round(amount * 4) / 4;
@@ -284,8 +291,8 @@ function cancelEditPrice() {
 
 function buildWeekPlan() {
   const days = getMealsForWeek(state.weekOffset);
-  const recipeMap = {};     // recipeId → { recipe, instances[], totalScale }
-  const ingredientMap = {}; // `name|unit` → { name, unit, amount, fromRecipes }
+  const recipeMap = {};
+  const ingredientMap = {};
 
   for (let dayIdx = 0; dayIdx < days.length; dayIdx++) {
     for (const meal of days[dayIdx]) {
@@ -294,14 +301,26 @@ function buildWeekPlan() {
       if (!recipe) continue;
 
       const activeMembers = members.filter(mid => !isExcluded(mid));
-      const portionSum = activeMembers.reduce((s, mid) => s + getMemberScaleFactor(mid), 0);
-      const batchScale = portionSum / (recipe.servings || 4);
+      const calPortionSum = activeMembers.reduce((s, mid) => s + getMemberScaleFactor(mid), 0);
+      const calBatchScale = calPortionSum / (recipe.servings || 4);
+
+      // In Macro mode, build per-macroType batch scales from portionIngredients
+      const macroBatchScale = {};
+      if (state.portionMode === 'macro') {
+        for (const mt of ['protein', 'carbs', 'fat']) {
+          const portionIng = (recipe.portionIngredients || []).find(i => i.macroType === mt);
+          if (portionIng) {
+            const sum = activeMembers.reduce((s, mid) => s + getIngredientScaleFactor(mid, portionIng, recipe), 0);
+            macroBatchScale[mt] = sum / (recipe.servings || 4);
+          }
+        }
+      }
 
       if (!recipeMap[recipeId]) {
         recipeMap[recipeId] = { recipe, instances: [], totalScale: 0 };
       }
-      recipeMap[recipeId].instances.push({ dayIdx, members: activeMembers, batchScale });
-      recipeMap[recipeId].totalScale += batchScale;
+      recipeMap[recipeId].instances.push({ dayIdx, members: activeMembers, batchScale: calBatchScale });
+      recipeMap[recipeId].totalScale += calBatchScale;
 
       if (recipe.ingredients) {
         for (const ing of recipe.ingredients) {
@@ -310,7 +329,10 @@ function buildWeekPlan() {
           if (!ingredientMap[key]) {
             ingredientMap[key] = { name: ing.name, unit: ing.unit, amount: 0, fromRecipes: new Set() };
           }
-          ingredientMap[key].amount += ing.amount * batchScale;
+          // Macro mode: route each ingredient to its macro-type scale; else calorie scale
+          const mt = state.portionMode === 'macro' ? getIngredientMacroType(ing.name) : 'calories';
+          const scale = (mt !== 'calories' && macroBatchScale[mt] != null) ? macroBatchScale[mt] : calBatchScale;
+          ingredientMap[key].amount += ing.amount * scale;
           ingredientMap[key].fromRecipes.add(recipe.name);
         }
       }
@@ -1279,7 +1301,7 @@ function switchStage(index) {
  * Update the green progress bar width based on current stage.
  */
 function updateProgress() {
-  const pct = ((state.currentStage + 1) / 5) * 100;
+  const pct = ((state.currentStage + 1) / 6) * 100;
   document.getElementById('progress-fill').style.width = `${pct}%`;
 }
 

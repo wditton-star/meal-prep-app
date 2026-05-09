@@ -2693,6 +2693,72 @@ html.dark .member-remove-confirm-text { color: #fca5a5; }
 .pt-macro-strip--target .pt-macro-chip--cal { border-color: var(--color-brand); }
 .pt-macro-strip--target .pt-macro-chip--protein { border-color: #3b82f6; }
 
+/* ── Macro mode tip banner ── */
+.pt-macro-tip {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  padding: 14px var(--space-md);
+  background: color-mix(in srgb, var(--color-brand) 8%, var(--color-surface));
+  border-bottom: 0.5px solid color-mix(in srgb, var(--color-brand) 25%, var(--color-border));
+}
+.pt-macro-tip-dismiss {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  touch-action: manipulation;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.12s, color 0.12s;
+}
+.pt-macro-tip-dismiss:hover { background: var(--color-border); color: var(--color-text); }
+.pt-macro-tip-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.pt-macro-tip-body {
+  flex: 1;
+  min-width: 0;
+  padding-right: 18px;
+}
+.pt-macro-tip-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0 0 5px;
+}
+.pt-macro-tip-desc {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+  margin: 0 0 10px;
+}
+.pt-macro-tip-desc strong { color: var(--color-text); font-weight: 600; }
+.pt-macro-tip-cta {
+  display: inline-block;
+  padding: 7px 14px;
+  background: var(--color-brand);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: opacity 0.12s;
+}
+.pt-macro-tip-cta:hover { opacity: 0.88; }
+
 /* ── Member cards ── */
 .pt-member-cards {
   display: flex;

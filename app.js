@@ -1213,6 +1213,7 @@ const state = {
   portionMode:           localStorage.getItem('preptarePortionMode') || 'simple',
   memberMealsPerDay:     loadMemberMealsPerDay(),
   portionRecipeId:       null,
+  macroBannerDismissed:  localStorage.getItem('preptareMacroBannerDismissed') === 'true',
 };
 
 // Transient state for the calculator modal (not persisted between opens)
@@ -2224,6 +2225,18 @@ function setPortionMode(mode) {
   renderPortionTable();
 }
 
+function dismissMacroBanner() {
+  state.macroBannerDismissed = true;
+  localStorage.setItem('preptareMacroBannerDismissed', 'true');
+  renderPortionTable();
+}
+
+function switchToMacroMode() {
+  state.macroBannerDismissed = true;
+  localStorage.setItem('preptareMacroBannerDismissed', 'true');
+  setPortionMode('macro');
+}
+
 function setMemberMealsPerDay(memberId, delta) {
   const current = state.memberMealsPerDay[memberId] || 3;
   state.memberMealsPerDay[memberId] = Math.max(1, Math.min(6, current + delta));
@@ -2363,6 +2376,24 @@ function renderPortionTable() {
       </div>
     </div>`;
 
+  /* ── Macro mode tip banner ── */
+  const hasNonMaintenance = members.some(m => (state.memberPhases[m.id] || 'maintenance') !== 'maintenance');
+  const showMacroBanner   = !isMacro && !state.macroBannerDismissed && hasNonMaintenance;
+  const macroBanner = showMacroBanner ? `
+    <div class="pt-macro-tip">
+      <button class="pt-macro-tip-dismiss"
+        ontouchend="dismissMacroBanner();event.preventDefault()"
+        onclick="dismissMacroBanner()" aria-label="Dismiss">&#x2715;</button>
+      <div class="pt-macro-tip-icon">🎯</div>
+      <div class="pt-macro-tip-body">
+        <p class="pt-macro-tip-title">You have custom macro targets set</p>
+        <p class="pt-macro-tip-desc">Simple mode scales portions by calories. <strong>Macro mode</strong> sizes each ingredient to hit your exact protein, carb, and fat targets per meal — so every portion works for your specific phase, not just a family average.</p>
+        <button class="pt-macro-tip-cta"
+          ontouchend="switchToMacroMode();event.preventDefault()"
+          onclick="switchToMacroMode()">Switch to Macro mode</button>
+      </div>
+    </div>` : '';
+
   /* ── Per-member cards ── */
   const memberCards = members.map(m => {
     const phase       = state.memberPhases[m.id] || 'maintenance';
@@ -2472,6 +2503,7 @@ function renderPortionTable() {
     ${recipeNav}
     ${modeToggle}
     ${unitToggle}
+    ${macroBanner}
     <div class="pt-member-cards">${memberCards}</div>`;
 }
 

@@ -1081,6 +1081,73 @@ const PORTIONS = [
     baseChicken: 3, baseRice: 0.75,baseVeg: 1.0, baseProtein: 24, baseCal: 355 },
 ];
 
+/**
+ * FRIDGE_CONFIGS — defines zones for each fridge layout type.
+ * span: 'full' = full-width zone, 'half' = paired side-by-side (crispers).
+ * col: 'left'|'right' — used only for side-by-side layout.
+ */
+const FRIDGE_CONFIGS = {
+  'top-freezer': {
+    label: 'Top Freezer',
+    layout: 'stacked',
+    zones: [
+      { id: 'freezer',       label: 'Freezer',        type: 'freezer', span: 'full' },
+      { id: 'fridge-top',    label: 'Top Shelf',       type: 'fridge',  span: 'full' },
+      { id: 'fridge-mid',    label: 'Middle Shelf',    type: 'fridge',  span: 'full' },
+      { id: 'fridge-bot',    label: 'Bottom Shelf',    type: 'fridge',  span: 'full' },
+      { id: 'crisper-left',  label: 'Crisper (L)',     type: 'crisper', span: 'half' },
+      { id: 'crisper-right', label: 'Crisper (R)',     type: 'crisper', span: 'half' },
+    ],
+  },
+  'bottom-freezer': {
+    label: 'Bottom Freezer',
+    layout: 'stacked',
+    zones: [
+      { id: 'fridge-top',    label: 'Top Shelf',       type: 'fridge',  span: 'full' },
+      { id: 'fridge-mid',    label: 'Middle Shelf',    type: 'fridge',  span: 'full' },
+      { id: 'fridge-bot',    label: 'Bottom Shelf',    type: 'fridge',  span: 'full' },
+      { id: 'crisper-left',  label: 'Crisper (L)',     type: 'crisper', span: 'half' },
+      { id: 'crisper-right', label: 'Crisper (R)',     type: 'crisper', span: 'half' },
+      { id: 'freezer',       label: 'Freezer Drawer',  type: 'freezer', span: 'full' },
+    ],
+  },
+  'french-door': {
+    label: 'French Door',
+    layout: 'stacked',
+    zones: [
+      { id: 'fridge-top',    label: 'Top Shelf',       type: 'fridge',  span: 'full' },
+      { id: 'fridge-mid',    label: 'Middle Shelf',    type: 'fridge',  span: 'full' },
+      { id: 'fridge-bot',    label: 'Bottom Shelf',    type: 'fridge',  span: 'full' },
+      { id: 'crisper-left',  label: 'Crisper (L)',     type: 'crisper', span: 'half' },
+      { id: 'crisper-right', label: 'Crisper (R)',     type: 'crisper', span: 'half' },
+      { id: 'freezer',       label: 'Freezer Drawer',  type: 'freezer', span: 'full' },
+    ],
+  },
+  'side-by-side': {
+    label: 'Side-by-Side',
+    layout: 'side-by-side',
+    zones: [
+      { id: 'fridge-top',    label: 'Fridge Top',      type: 'fridge',  col: 'left'  },
+      { id: 'freezer-top',   label: 'Freezer Top',     type: 'freezer', col: 'right' },
+      { id: 'fridge-mid',    label: 'Fridge Mid',       type: 'fridge',  col: 'left'  },
+      { id: 'freezer-mid',   label: 'Freezer Mid',      type: 'freezer', col: 'right' },
+      { id: 'fridge-bot',    label: 'Fridge Bottom',    type: 'fridge',  col: 'left'  },
+      { id: 'freezer-bot',   label: 'Freezer Bottom',   type: 'freezer', col: 'right' },
+      { id: 'crisper-left',  label: 'Crisper',          type: 'crisper', col: 'left'  },
+      { id: 'freezer-draw',  label: 'Drawer',           type: 'freezer', col: 'right' },
+    ],
+  },
+  'mini': {
+    label: 'Mini / Single Door',
+    layout: 'stacked',
+    zones: [
+      { id: 'fridge-top',    label: 'Top Shelf',        type: 'fridge',  span: 'full' },
+      { id: 'fridge-mid',    label: 'Middle Shelf',     type: 'fridge',  span: 'full' },
+      { id: 'fridge-bot',    label: 'Bottom Shelf',     type: 'fridge',  span: 'full' },
+    ],
+  },
+};
+
 
 /* ============================================================
    2. STATE
@@ -1143,6 +1210,16 @@ function loadMemberMealsPerDay() {
 }
 function saveMemberMealsPerDay() {
   localStorage.setItem('preptareMealsPerDay', JSON.stringify(state.memberMealsPerDay));
+}
+function loadContainerAssignments() {
+  try {
+    const raw = localStorage.getItem('preptareFridgeAssignments');
+    if (raw) return JSON.parse(raw);
+  } catch (_) {}
+  return {};
+}
+function saveContainerAssignments() {
+  localStorage.setItem('preptareFridgeAssignments', JSON.stringify(state.containerAssignments));
 }
 function toggleFavorite(recipeId, event) {
   event.stopPropagation();
@@ -1236,6 +1313,9 @@ const state = {
   memberMealsPerDay:     loadMemberMealsPerDay(),
   portionRecipeId:       null,
   macroBannerDismissed:  localStorage.getItem('preptareMacroBannerDismissed') === 'true',
+  fridgeType:            localStorage.getItem('preptareFridgeType') || 'top-freezer',
+  containerAssignments:  loadContainerAssignments(),
+  fridgeSelectingKey:    null,
 };
 
 // Transient state for the calculator modal (not persisted between opens)
@@ -1468,6 +1548,7 @@ function renderAll() {
   renderStoreLayout();
   renderPrepSteps();
   renderPortionTable();
+  renderFridgeMap();
 }
 
 function renderDownstream() {
@@ -1476,6 +1557,7 @@ function renderDownstream() {
   renderStoreLayout();
   renderPrepSteps();
   renderPortionTable();
+  renderFridgeMap();
 }
 
 function setMemberPhase(memberId, phase) {
@@ -2527,6 +2609,239 @@ function renderPortionTable() {
     ${unitToggle}
     ${macroBanner}
     <div class="pt-member-cards">${memberCards}</div>`;
+}
+
+
+/* ============================================================
+   5b. FRIDGE MAP — Stage 6
+   ============================================================ */
+
+function buildContainers(plan) {
+  const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const containers = [];
+  for (const { recipe, instances } of plan.recipes) {
+    for (const instance of instances) {
+      const { dayIdx, members } = instance;
+      for (const mid of members) {
+        const member = MEMBERS.find(m => m.id === mid);
+        if (!member) continue;
+        const portionIngs = recipe.portionIngredients || [];
+        const totalGrams = portionIngs.length > 0
+          ? portionIngs.reduce((sum, ing) => sum + ing.gramsPerServing * getIngredientScaleFactor(mid, ing, recipe), 0)
+          : 400;
+        const containerSize = totalGrams < 400 ? '16 oz' : totalGrams < 700 ? '32 oz' : '48 oz';
+        containers.push({
+          key: `${mid}|${recipe.id}|${dayIdx}`,
+          memberId: mid,
+          memberName: member.name,
+          memberInitials: member.initials,
+          memberAvatarClass: member.avatarClass,
+          recipeName: recipe.name,
+          recipeId: recipe.id,
+          dayIdx,
+          dayLabel: DAY_LABELS[dayIdx] ?? `Day ${dayIdx + 1}`,
+          totalGrams: Math.round(totalGrams),
+          containerSize,
+        });
+      }
+    }
+  }
+  return containers.sort((a, b) => a.dayIdx - b.dayIdx || a.memberId.localeCompare(b.memberId));
+}
+
+function autoSuggestFridgeLayout(containers, fridgeTypeId) {
+  const config = FRIDGE_CONFIGS[fridgeTypeId];
+  if (!config) return {};
+  const fridgeZones  = config.zones.filter(z => z.type === 'fridge');
+  const freezerZones = config.zones.filter(z => z.type === 'freezer');
+  const crisperZones = config.zones.filter(z => z.type === 'crisper');
+  const topZone     = fridgeZones[0]?.id;
+  const midZone     = fridgeZones[1]?.id || topZone;
+  const botZone     = fridgeZones[2]?.id || midZone;
+  const crisperZone = crisperZones[0]?.id;
+  const freezerZone = freezerZones[0]?.id;
+  const assignments = {};
+  for (const c of containers) {
+    if (crisperZone && /stir.?fry|vegetable|salad/i.test(c.recipeName)) {
+      assignments[c.key] = crisperZone; continue;
+    }
+    if (freezerZone && c.dayIdx >= 4) {
+      assignments[c.key] = freezerZone; continue;
+    }
+    if (c.dayIdx <= 1)      assignments[c.key] = topZone;
+    else if (c.dayIdx <= 3) assignments[c.key] = midZone;
+    else                    assignments[c.key] = botZone;
+  }
+  return assignments;
+}
+
+function shortRecipeName(name) {
+  const aliases = {
+    'Grilled chicken & rice bowls': 'Chicken Bowl',
+    'Turkey & veggie stir-fry': 'Turkey Stir-fry',
+    'Salmon with roasted sweet potato': 'Salmon Bowl',
+    'Ground beef taco bowls': 'Taco Bowl',
+  };
+  const s = aliases[name] || name;
+  return s.length > 15 ? s.substring(0, 14) + '…' : s;
+}
+
+function setFridgeType(typeId) {
+  state.fridgeType = typeId;
+  localStorage.setItem('preptareFridgeType', typeId);
+  state.containerAssignments = {};
+  renderFridgeMap();
+}
+
+function selectFridgeContainer(key) {
+  state.fridgeSelectingKey = state.fridgeSelectingKey === key ? null : key;
+  renderFridgeMap();
+}
+
+function assignContainerToZone(zoneId) {
+  if (!state.fridgeSelectingKey) return;
+  state.containerAssignments[state.fridgeSelectingKey] = zoneId;
+  state.fridgeSelectingKey = null;
+  saveContainerAssignments();
+  renderFridgeMap();
+}
+
+function renderFridgeMap() {
+  const card = document.getElementById('fridge-map-card');
+  if (!card) return;
+
+  const plan = buildWeekPlan();
+  if (!plan.hasMeals) {
+    card.innerHTML = `
+      <div class="card-header">Fridge map</div>
+      <div class="portion-empty">
+        <div class="portion-empty-icon">🧊</div>
+        <p>Add meals to your calendar on Stage 1 to generate a fridge layout plan.</p>
+      </div>`;
+    return;
+  }
+
+  const containers = buildContainers(plan);
+  const config = FRIDGE_CONFIGS[state.fridgeType] || FRIDGE_CONFIGS['top-freezer'];
+
+  // Prune stale assignments; auto-suggest any new containers
+  const validKeys = new Set(containers.map(c => c.key));
+  for (const k of Object.keys(state.containerAssignments)) {
+    if (!validKeys.has(k)) delete state.containerAssignments[k];
+  }
+  const unassigned = containers.filter(c => !state.containerAssignments[c.key]);
+  if (unassigned.length) {
+    const suggested = autoSuggestFridgeLayout(containers, state.fridgeType);
+    for (const c of unassigned) {
+      state.containerAssignments[c.key] = suggested[c.key];
+    }
+    saveContainerAssignments();
+  }
+
+  const isSelecting = !!state.fridgeSelectingKey;
+  const selectingC  = isSelecting ? containers.find(c => c.key === state.fridgeSelectingKey) : null;
+
+  /* ── Type selector ── */
+  const typeSelector = `
+    <div class="fm-type-row">
+      <span class="fm-type-label">Fridge type</span>
+      <div class="fm-type-btns">
+        ${Object.entries(FRIDGE_CONFIGS).map(([id, cfg]) => `
+          <button class="fm-type-btn${state.fridgeType === id ? ' active' : ''}"
+            ontouchend="setFridgeType('${id}');event.preventDefault()"
+            onclick="setFridgeType('${id}')">${cfg.label}</button>`).join('')}
+      </div>
+    </div>`;
+
+  /* ── Summary bar ── */
+  const countBySize = containers.reduce((acc, c) => { acc[c.containerSize] = (acc[c.containerSize] || 0) + 1; return acc; }, {});
+  const countStr = Object.entries(countBySize).map(([s, n]) => `${n}× ${s}`).join('  ·  ');
+  const summaryBar = `
+    <div class="fm-summary-bar">
+      <span class="fm-summary-count">${containers.length} containers needed</span>
+      <span class="fm-summary-sizes">${countStr}</span>
+    </div>`;
+
+  /* ── Selection hint ── */
+  const selectionHint = isSelecting && selectingC ? `
+    <div class="fm-select-hint">
+      Moving <strong>${selectingC.memberName} · ${shortRecipeName(selectingC.recipeName)} · ${selectingC.dayLabel}</strong>
+      — tap a shelf to place it
+      <button class="fm-cancel-btn"
+        ontouchend="selectFridgeContainer('${state.fridgeSelectingKey}');event.preventDefault()"
+        onclick="selectFridgeContainer('${state.fridgeSelectingKey}')">Cancel</button>
+    </div>` : '';
+
+  /* ── Container tile ── */
+  function tileHtml(c) {
+    const sel = c.key === state.fridgeSelectingKey;
+    return `
+      <div class="fm-tile${sel ? ' fm-tile--selected' : ''}"
+        ontouchend="selectFridgeContainer('${c.key}');event.preventDefault()"
+        onclick="selectFridgeContainer('${c.key}')">
+        <div class="avatar ${c.memberAvatarClass} fm-tile-avatar">${c.memberInitials}</div>
+        <span class="fm-tile-recipe">${shortRecipeName(c.recipeName)}</span>
+        <span class="fm-tile-day">${c.dayLabel}</span>
+        <span class="fm-tile-size">${c.containerSize}</span>
+      </div>`;
+  }
+
+  /* ── Single zone ── */
+  function zoneHtml(zone) {
+    const zoneContainers = containers.filter(c => state.containerAssignments[c.key] === zone.id);
+    const isEmpty = zoneContainers.length === 0;
+    return `
+      <div class="fm-zone fm-zone--${zone.type}${isSelecting ? ' fm-zone--selectable' : ''}"
+        ${isSelecting ? `ontouchend="assignContainerToZone('${zone.id}');event.preventDefault()" onclick="assignContainerToZone('${zone.id}')"` : ''}
+        data-zone="${zone.id}">
+        <span class="fm-zone-label">${zone.label}</span>
+        <div class="fm-zone-tiles">
+          ${zoneContainers.map(tileHtml).join('')}
+          ${isEmpty ? `<span class="fm-zone-empty">${isSelecting ? 'Place here' : '—'}</span>` : ''}
+        </div>
+      </div>`;
+  }
+
+  /* ── Fridge body ── */
+  let fridgeBody = '';
+  if (config.layout === 'side-by-side') {
+    const leftZones  = config.zones.filter(z => z.col === 'left');
+    const rightZones = config.zones.filter(z => z.col === 'right');
+    const rowCount = Math.max(leftZones.length, rightZones.length);
+    fridgeBody = `<div class="fm-fridge fm-fridge--sbs">`;
+    for (let r = 0; r < rowCount; r++) {
+      fridgeBody += `<div class="fm-sbs-row">`;
+      if (leftZones[r])  fridgeBody += zoneHtml(leftZones[r]);
+      if (rightZones[r]) fridgeBody += zoneHtml(rightZones[r]);
+      fridgeBody += `</div>`;
+    }
+    fridgeBody += `</div>`;
+  } else {
+    fridgeBody = `<div class="fm-fridge">`;
+    let i = 0;
+    while (i < config.zones.length) {
+      const zone = config.zones[i];
+      if (zone.span === 'half') {
+        const next = config.zones[i + 1]?.span === 'half' ? config.zones[i + 1] : null;
+        fridgeBody += `<div class="fm-crisper-row">`;
+        fridgeBody += zoneHtml(zone);
+        if (next) { fridgeBody += zoneHtml(next); i++; }
+        fridgeBody += `</div>`;
+      } else {
+        fridgeBody += zoneHtml(zone);
+      }
+      i++;
+    }
+    fridgeBody += `</div>`;
+  }
+
+  card.innerHTML = `
+    <div class="card-header">Fridge map</div>
+    ${typeSelector}
+    ${summaryBar}
+    ${selectionHint}
+    ${fridgeBody}
+    <p class="fm-footer-hint">Tap any container to move it to a different shelf.</p>`;
 }
 
 

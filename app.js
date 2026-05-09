@@ -2657,12 +2657,12 @@ function renderPortionTable() {
       </div>
       ${isMacro ? `<div class="pt-macro-sublabel" id="pt-macro-sub-${m.id}">Target per meal &nbsp;·&nbsp; ${macros.cal.toLocaleString()} cal/day ÷ ${mealsPerDay}</div>` : ''}`;
 
-    /* Portion size slider */
-    const baseCal   = isMacro ? Math.round(macros.cal / mealsPerDay) : Math.round((recipe.calories || 0) * calScale);
+    /* Portion size slider — macro mode only */
+    const baseCal   = Math.round(macros.cal / mealsPerDay);
     const sliderMin = 50;
     const sliderMax = 200;
     const sliderVal = Math.round(portionScale * 100);
-    const portionSlider = `
+    const portionSlider = isMacro ? `
       <div class="pt-portion-slider">
         <div class="pt-slider-header">
           <span class="pt-slider-label">Portion size</span>
@@ -2683,7 +2683,7 @@ function renderPortionTable() {
           <span class="pt-slider-tick-mid">Base: ${baseCal} cal</span>
           <span>${Math.round(baseCal * 2)} cal</span>
         </div>
-      </div>`;
+      </div>` : '';
 
     /* Week total */
     const weekLines = portionIngs.map((ing, idx) => {

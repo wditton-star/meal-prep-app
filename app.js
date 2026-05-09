@@ -1221,6 +1221,16 @@ function loadContainerAssignments() {
 function saveContainerAssignments() {
   localStorage.setItem('preptareFridgeAssignments', JSON.stringify(state.containerAssignments));
 }
+function loadMemberPortionScale() {
+  try {
+    const raw = localStorage.getItem('preptareMemberPortionScale');
+    if (raw) return JSON.parse(raw);
+  } catch (_) {}
+  return {};
+}
+function saveMemberPortionScale() {
+  localStorage.setItem('preptareMemberPortionScale', JSON.stringify(state.memberPortionScale));
+}
 function toggleFavorite(recipeId, event) {
   event.stopPropagation();
   if (state.favoriteRecipes.has(recipeId)) state.favoriteRecipes.delete(recipeId);
@@ -1316,6 +1326,7 @@ const state = {
   fridgeType:            localStorage.getItem('preptareFridgeType') || 'top-freezer',
   containerAssignments:  loadContainerAssignments(),
   fridgeSelectingKey:    null,
+  memberPortionScale:    loadMemberPortionScale(),
 };
 
 // Transient state for the calculator modal (not persisted between opens)
@@ -2348,6 +2359,77 @@ function setMemberMealsPerDay(memberId, delta) {
   renderPortionTable();
 }
 
+function setMemberPortionScale(memberId, rawValue) {
+  state.memberPortionScale[memberId] = parseInt(rawValue, 10) / 100;
+  saveMemberPortionScale();
+}
+
+function resetPortionScale(memberId) {
+  state.memberPortionScale[memberId] = 1.0;
+  saveMemberPortionScale();
+  renderPortionTable();
+}
+
+function updatePortionScaleDisplay(memberId, rawValue) {
+  const portionScale = parseInt(rawValue, 10) / 100;
+  state.memberPortionScale[memberId] = portionScale;
+
+  const plan = buildWeekPlan();
+  const recipeEntry = plan.recipes.find(r => r.recipe.id === state.portionRecipeId);
+  if (!recipeEntry) return;
+  const { recipe, instances } = recipeEntry;
+
+  const phase      = state.memberPhases[memberId] || 'maintenance';
+  const macros     = state.memberMacros[memberId]?.[phase] || MEMBERS.find(m => m.id === memberId).maintenance;
+  const mealsPerDay = state.memberMealsPerDay[memberId] || 3;
+  const isMacro    = state.portionMode === 'macro';
+  const calScale   = getMemberScaleFactor(memberId);
+  const portionIngs = recipe.portionIngredients || [];
+
+  // Update ingredient amounts
+  portionIngs.forEach((ing, idx) => {
+    const el = document.getElementById(`pt-ing-amt-${memberId}-${idx}`);
+    if (!el) return;
+    const scale = getIngredientScaleFactor(memberId, ing, recipe);
+    el.textContent = fmtIngredientAmount(ing.gramsPerServing * scale * portionScale, ing, state.portionUnit);
+  });
+
+  // Compute scaled macros
+  let cal, protein, carbs, fat;
+  if (isMacro) {
+    cal     = Math.round((macros.cal     / mealsPerDay) * portionScale);
+    protein = Math.round((macros.protein / mealsPerDay) * portionScale);
+    carbs   = Math.round((macros.carbs   / mealsPerDay) * portionScale);
+    fat     = Math.round((macros.fat     / mealsPerDay) * portionScale);
+  } else {
+    cal     = Math.round((recipe.calories || 0) * calScale * portionScale);
+    protein = Math.round((recipe.protein  || 0) * calScale * portionScale);
+    carbs   = Math.round((recipe.carbs    || 0) * calScale * portionScale);
+    fat     = Math.round((recipe.fat      || 0) * calScale * portionScale);
+  }
+  const elCal = document.getElementById(`pt-macro-cal-${memberId}`);
+  const elPro = document.getElementById(`pt-macro-pro-${memberId}`);
+  const elCrb = document.getElementById(`pt-macro-crb-${memberId}`);
+  const elFat = document.getElementById(`pt-macro-fat-${memberId}`);
+  if (elCal) elCal.textContent = cal;
+  if (elPro) elPro.textContent = `${protein}g`;
+  if (elCrb) elCrb.textContent = `${carbs}g`;
+  if (elFat) elFat.textContent = `${fat}g`;
+
+  // Update slider display value
+  const valEl = document.getElementById(`pt-slider-val-${memberId}`);
+  if (valEl) valEl.textContent = `${cal} cal · ${protein}g protein`;
+
+  // Update week totals
+  const dayCount = instances.filter(i => i.members.includes(memberId)).length;
+  portionIngs.forEach((ing, idx) => {
+    const el = document.getElementById(`pt-week-${memberId}-${idx}`);
+    if (!el) return;
+    const scale = getIngredientScaleFactor(memberId, ing, recipe);
+    el.textContent = fmtIngredientWeekTotal(ing.gramsPerServing * scale * portionScale, ing, state.portionUnit, dayCount);
+  });
+}
+
 function getIngredientScaleFactor(memberId, ing, recipe) {
   if (state.portionMode === 'simple' || !ing.macroType || ing.macroType === 'calories') {
     return getMemberScaleFactor(memberId);
@@ -2500,13 +2582,15 @@ function renderPortionTable() {
 
   /* ── Per-member cards ── */
   const memberCards = members.map(m => {
-    const phase       = state.memberPhases[m.id] || 'maintenance';
-    const macros      = state.memberMacros[m.id]?.[phase] || m.maintenance;
-    const mealsPerDay = state.memberMealsPerDay[m.id] || 3;
-    const calScale    = getMemberScaleFactor(m.id);
-    const dayCount    = instances.filter(i => i.members.includes(m.id)).length;
-    const phaseLabel  = phase === 'bulking' ? 'Bulk' : phase === 'deficit' ? 'Deficit' : phase === 'custom' ? 'Custom' : 'Maintain';
-    const phaseClass  = phase === 'bulking' ? 'pt-phase--bulk' : phase === 'deficit' ? 'pt-phase--deficit' : phase === 'custom' ? 'pt-phase--custom' : 'pt-phase--maintenance';
+    const phase        = state.memberPhases[m.id] || 'maintenance';
+    const macros       = state.memberMacros[m.id]?.[phase] || m.maintenance;
+    const mealsPerDay  = state.memberMealsPerDay[m.id] || 3;
+    const calScale     = getMemberScaleFactor(m.id);
+    const portionScale = state.memberPortionScale[m.id] ?? 1.0;
+    const dayCount     = instances.filter(i => i.members.includes(m.id)).length;
+    const phaseLabel   = phase === 'bulking' ? 'Bulk' : phase === 'deficit' ? 'Deficit' : phase === 'custom' ? 'Custom' : 'Maintain';
+    const phaseClass   = phase === 'bulking' ? 'pt-phase--bulk' : phase === 'deficit' ? 'pt-phase--deficit' : phase === 'custom' ? 'pt-phase--custom' : 'pt-phase--maintenance';
+    const hasCustomScale = Math.abs(portionScale - 1.0) > 0.02;
 
     /* Meals/day stepper (macro mode only) */
     const mealsStepper = `
@@ -2527,13 +2611,13 @@ function renderPortionTable() {
     const ingGrid = portionIngs.length ? `
       <div class="pt-ing-section-label">Ingredients per meal</div>
       <div class="pt-ing-grid">
-        ${portionIngs.map(ing => {
+        ${portionIngs.map((ing, idx) => {
           const scale = getIngredientScaleFactor(m.id, ing, recipe);
-          const grams = ing.gramsPerServing * scale;
+          const grams = ing.gramsPerServing * scale * portionScale;
           return `
             <div class="pt-ing-item">
               <span class="pt-ing-name">${ing.name}</span>
-              <span class="pt-ing-amount">${fmtIngredientAmount(grams, ing, state.portionUnit)}</span>
+              <span class="pt-ing-amount" id="pt-ing-amt-${m.id}-${idx}">${fmtIngredientAmount(grams, ing, state.portionUnit)}</span>
             </div>`;
         }).join('')}
       </div>` : '';
@@ -2541,42 +2625,70 @@ function renderPortionTable() {
     /* Macro strip */
     let cal, protein, carbs, fat;
     if (isMacro) {
-      cal     = Math.round(macros.cal     / mealsPerDay);
-      protein = Math.round(macros.protein / mealsPerDay);
-      carbs   = Math.round(macros.carbs   / mealsPerDay);
-      fat     = Math.round(macros.fat     / mealsPerDay);
+      cal     = Math.round((macros.cal     / mealsPerDay) * portionScale);
+      protein = Math.round((macros.protein / mealsPerDay) * portionScale);
+      carbs   = Math.round((macros.carbs   / mealsPerDay) * portionScale);
+      fat     = Math.round((macros.fat     / mealsPerDay) * portionScale);
     } else {
-      cal     = Math.round((recipe.calories || 0) * calScale);
-      protein = Math.round((recipe.protein  || 0) * calScale);
-      carbs   = Math.round((recipe.carbs    || 0) * calScale);
-      fat     = Math.round((recipe.fat      || 0) * calScale);
+      cal     = Math.round((recipe.calories || 0) * calScale * portionScale);
+      protein = Math.round((recipe.protein  || 0) * calScale * portionScale);
+      carbs   = Math.round((recipe.carbs    || 0) * calScale * portionScale);
+      fat     = Math.round((recipe.fat      || 0) * calScale * portionScale);
     }
     const macroStrip = `
       <div class="pt-macro-strip${isMacro ? ' pt-macro-strip--target' : ''}">
         <div class="pt-macro-chip pt-macro-chip--cal">
-          <span class="pt-macro-chip-val">${cal}</span>
+          <span class="pt-macro-chip-val" id="pt-macro-cal-${m.id}">${cal}</span>
           <span class="pt-macro-chip-lbl">cal</span>
         </div>
         <div class="pt-macro-chip pt-macro-chip--protein">
-          <span class="pt-macro-chip-val">${protein}g</span>
+          <span class="pt-macro-chip-val" id="pt-macro-pro-${m.id}">${protein}g</span>
           <span class="pt-macro-chip-lbl">protein</span>
         </div>
         <div class="pt-macro-chip">
-          <span class="pt-macro-chip-val">${carbs}g</span>
+          <span class="pt-macro-chip-val" id="pt-macro-crb-${m.id}">${carbs}g</span>
           <span class="pt-macro-chip-lbl">carbs</span>
         </div>
         <div class="pt-macro-chip">
-          <span class="pt-macro-chip-val">${fat}g</span>
+          <span class="pt-macro-chip-val" id="pt-macro-fat-${m.id}">${fat}g</span>
           <span class="pt-macro-chip-lbl">fat</span>
         </div>
       </div>
-      ${isMacro ? `<div class="pt-macro-sublabel">Target per meal &nbsp;·&nbsp; ${macros.cal.toLocaleString()} cal/day ÷ ${mealsPerDay}</div>` : ''}`;
+      ${isMacro ? `<div class="pt-macro-sublabel" id="pt-macro-sub-${m.id}">Target per meal &nbsp;·&nbsp; ${macros.cal.toLocaleString()} cal/day ÷ ${mealsPerDay}</div>` : ''}`;
+
+    /* Portion size slider */
+    const baseCal   = isMacro ? Math.round(macros.cal / mealsPerDay) : Math.round((recipe.calories || 0) * calScale);
+    const sliderMin = 50;
+    const sliderMax = 200;
+    const sliderVal = Math.round(portionScale * 100);
+    const portionSlider = `
+      <div class="pt-portion-slider">
+        <div class="pt-slider-header">
+          <span class="pt-slider-label">Portion size</span>
+          <span class="pt-slider-val" id="pt-slider-val-${m.id}">${cal} cal · ${protein}g protein</span>
+          ${hasCustomScale ? `
+            <button class="pt-slider-reset"
+              ontouchend="resetPortionScale('${m.id}');event.preventDefault()"
+              onclick="resetPortionScale('${m.id}')">Reset</button>` : ''}
+        </div>
+        <input type="range" class="pt-slider"
+          min="${sliderMin}" max="${sliderMax}" step="5"
+          value="${sliderVal}"
+          oninput="updatePortionScaleDisplay('${m.id}', this.value)"
+          onchange="setMemberPortionScale('${m.id}', this.value)"
+          ontouchstart="event.stopPropagation()">
+        <div class="pt-slider-ticks">
+          <span>${Math.round(baseCal * 0.5)} cal</span>
+          <span class="pt-slider-tick-mid">Base: ${baseCal} cal</span>
+          <span>${Math.round(baseCal * 2)} cal</span>
+        </div>
+      </div>`;
 
     /* Week total */
-    const weekLines = portionIngs.map(ing => {
+    const weekLines = portionIngs.map((ing, idx) => {
       const scale = getIngredientScaleFactor(m.id, ing, recipe);
-      const gramsPerMeal = ing.gramsPerServing * scale;
-      return `<span class="pt-week-item"><span class="pt-week-ing">${ing.name}</span><strong>${fmtIngredientWeekTotal(gramsPerMeal, ing, state.portionUnit, dayCount)}</strong></span>`;
+      const gramsPerMeal = ing.gramsPerServing * scale * portionScale;
+      return `<span class="pt-week-item"><span class="pt-week-ing">${ing.name}</span><strong id="pt-week-${m.id}-${idx}">${fmtIngredientWeekTotal(gramsPerMeal, ing, state.portionUnit, dayCount)}</strong></span>`;
     }).join('');
     const weekTotal = portionIngs.length ? `
       <div class="pt-week-total">
@@ -2599,6 +2711,7 @@ function renderPortionTable() {
         </div>
         ${ingGrid}
         ${macroStrip}
+        ${portionSlider}
         ${weekTotal}
       </div>`;
   }).join('');

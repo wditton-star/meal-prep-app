@@ -2693,6 +2693,99 @@ html.dark .member-remove-confirm-text { color: #fca5a5; }
 .pt-macro-strip--target .pt-macro-chip--cal { border-color: var(--color-brand); }
 .pt-macro-strip--target .pt-macro-chip--protein { border-color: #3b82f6; }
 
+/* ── Portion size slider ── */
+.pt-portion-slider {
+  margin: 0 0 var(--space-sm);
+  padding: 10px 12px;
+  background: var(--color-bg);
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.pt-slider-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.pt-slider-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+.pt-slider-val {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-brand);
+  margin-left: auto;
+  white-space: nowrap;
+}
+.pt-slider-reset {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  touch-action: manipulation;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: border-color 0.12s, color 0.12s;
+}
+.pt-slider-reset:hover { border-color: var(--color-brand); color: var(--color-brand); }
+
+/* Range input — cross-browser custom styling */
+.pt-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-border-strong);
+  outline: none;
+  cursor: pointer;
+  display: block;
+}
+.pt-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--color-brand);
+  border: 2.5px solid var(--color-surface);
+  box-shadow: 0 1px 6px rgba(0,0,0,0.25);
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+.pt-slider::-webkit-slider-thumb:hover { transform: scale(1.15); }
+.pt-slider::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--color-brand);
+  border: 2.5px solid var(--color-surface);
+  box-shadow: 0 1px 6px rgba(0,0,0,0.25);
+  cursor: pointer;
+}
+.pt-slider-ticks {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+.pt-slider-ticks span {
+  font-size: 9px;
+  color: var(--color-text-muted);
+}
+.pt-slider-tick-mid {
+  color: var(--color-brand) !important;
+  font-weight: 600;
+}
+
 /* ── Macro mode tip banner ── */
 .pt-macro-tip {
   position: relative;

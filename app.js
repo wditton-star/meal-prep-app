@@ -2452,7 +2452,7 @@ function setMemberMealsPerDay(memberId, delta) {
 
 function setMemberPortionScale(memberId, recipeId, rawValue) {
   const v = parseInt(rawValue, 10) / 100;
-  state.memberPortionScale[`${memberId}|${recipeId}`] = Math.min(1.25, Math.max(0.75, v));
+  state.memberPortionScale[`${memberId}|${recipeId}`] = Math.min(1.5, Math.max(0.5, v));
   saveMemberPortionScale();
   renderDownstream();
 }
@@ -2751,8 +2751,8 @@ function renderPortionTable() {
 
     /* Portion size slider — macro mode only */
     const baseCal   = Math.round(macros.cal / mealsPerDay);
-    const sliderMin = 75;
-    const sliderMax = 125;
+    const sliderMin = 50;
+    const sliderMax = 150;
     const sliderVal = Math.round(portionScale * 100);
     const portionSlider = isMacro ? `
       <div class="pt-portion-slider">
@@ -2771,9 +2771,9 @@ function renderPortionTable() {
           onchange="setMemberPortionScale('${m.id}', '${recipe.id}', this.value)"
           ontouchstart="event.stopPropagation()">
         <div class="pt-slider-ticks">
-          <span>${Math.round(baseCal * 0.75)} cal</span>
+          <span>${Math.round(baseCal * 0.5)} cal</span>
           <span class="pt-slider-tick-mid">Base: ${baseCal} cal</span>
-          <span>${Math.round(baseCal * 1.25)} cal</span>
+          <span>${Math.round(baseCal * 1.5)} cal</span>
         </div>
       </div>` : '';
 

@@ -297,7 +297,7 @@ function buildWeekPlan() {
   for (let dayIdx = 0; dayIdx < days.length; dayIdx++) {
     for (const meal of days[dayIdx]) {
       const { recipeId, members } = meal;
-      const recipe = [...RECIPES, ...ETG_RECIPES].find(r => r.id === recipeId);
+      const recipe = allRecipes().find(r => r.id === recipeId);
       if (!recipe) continue;
 
       const activeMembers = members.filter(mid => !isExcluded(mid));
@@ -331,14 +331,19 @@ function buildWeekPlan() {
       if (recipe.ingredients) {
         for (const ing of recipe.ingredients) {
           if (!ing.amount) continue;
-          const key = `${ing.name.toLowerCase().trim()}|${ing.unit}`;
+          let activeIng = ing;
+          if (ing.amount && meal.swaps) {
+            const swapData = meal.swaps[ing.name.toLowerCase().trim()];
+            if (swapData) activeIng = { name: swapData.name, amount: swapData.amount || ing.amount, unit: swapData.unit || ing.unit };
+          }
+          const key = `${activeIng.name.toLowerCase().trim()}|${activeIng.unit}`;
           if (!ingredientMap[key]) {
-            ingredientMap[key] = { name: ing.name, unit: ing.unit, amount: 0, fromRecipes: new Set() };
+            ingredientMap[key] = { name: activeIng.name, unit: activeIng.unit, amount: 0, fromRecipes: new Set() };
           }
           // Macro mode: route each ingredient to its macro-type scale; else calorie scale
-          const mt = state.portionMode === 'macro' ? getIngredientMacroType(ing.name) : 'calories';
+          const mt = state.portionMode === 'macro' ? getIngredientMacroType(activeIng.name) : 'calories';
           const scale = (mt !== 'calories' && macroBatchScale[mt] != null) ? macroBatchScale[mt] : calBatchScale;
-          ingredientMap[key].amount += ing.amount * scale;
+          ingredientMap[key].amount += activeIng.amount * scale;
           ingredientMap[key].fromRecipes.add(recipe.name);
         }
       }
@@ -1199,6 +1204,11 @@ const ALL_DAYS_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', '
 const STORAGE_KEY  = 'mealPrepCalendar';
 const PREFS_KEY      = 'preptarePrefs';
 const FAVORITES_KEY  = 'preptareFavorites';
+const CUSTOM_RECIPES_KEY = 'preptareCustomRecipes';
+
+function escHtml(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 
 function loadFavorites() {
   try { return new Set(JSON.parse(localStorage.getItem(FAVORITES_KEY)) || []); }
@@ -1206,6 +1216,13 @@ function loadFavorites() {
 }
 function saveFavorites() {
   localStorage.setItem(FAVORITES_KEY, JSON.stringify([...state.favoriteRecipes]));
+}
+function loadCustomRecipes() {
+  try { return JSON.parse(localStorage.getItem(CUSTOM_RECIPES_KEY) || '[]'); }
+  catch (_) { return []; }
+}
+function saveCustomRecipes() {
+  localStorage.setItem(CUSTOM_RECIPES_KEY, JSON.stringify(state.customRecipes));
 }
 function loadMemberMealsPerDay() {
   try {
@@ -1333,7 +1350,13 @@ const state = {
   containerAssignments:  loadContainerAssignments(),
   fridgeSelectingKey:    null,
   memberPortionScale:    loadMemberPortionScale(),
+  customRecipes:         loadCustomRecipes(),
+  builder:               null,
 };
+
+function allRecipes() {
+  return [...RECIPES, ...ETG_RECIPES, ...state.customRecipes];
+}
 
 // Transient state for the calculator modal (not persisted between opens)
 const _calc = { memberId: MEMBERS[0].id, gender: 'male', activity: 1.55 };
@@ -1798,12 +1821,54 @@ function renderRecipes() {
   const filterBar = document.getElementById('recipe-filter-bar');
   if (filterBar) {
     filterBar.innerHTML = `
-      <button class="recipe-filter-btn${state.recipeFilter === 'all' ? ' active' : ''}" onclick="setRecipeFilter('all')">All</button>
-      <button class="recipe-filter-btn${state.recipeFilter === 'favorites' ? ' active' : ''}" onclick="setRecipeFilter('favorites')">★ Favorites</button>
+      <div class="recipe-filter-bar-inner">
+        <div class="recipe-filter-tabs">
+          <button class="recipe-filter-btn${state.recipeFilter === 'all' ? ' active' : ''}" onclick="setRecipeFilter('all')">All</button>
+          <button class="recipe-filter-btn${state.recipeFilter === 'favorites' ? ' active' : ''}" onclick="setRecipeFilter('favorites')">★ Favorites</button>
+          <button class="recipe-filter-btn${state.recipeFilter === 'mine' ? ' active' : ''}" onclick="setRecipeFilter('mine')">My Recipes</button>
+        </div>
+        <button class="recipe-create-btn" onclick="openRecipeBuilder()">+ Create</button>
+      </div>
     `;
   }
 
-  let recipes = RECIPES.map((recipe, i) => ({ recipe, i }));
+  // "Mine" filter: show only custom recipes
+  if (state.recipeFilter === 'mine') {
+    if (state.customRecipes.length === 0) {
+      grid.innerHTML = `<div class="recipe-favorites-empty">No custom recipes yet — tap <strong>+ Create</strong> to build your first.</div>`;
+      return;
+    }
+    grid.innerHTML = state.customRecipes.map(recipe => {
+      const armed   = state.armedRecipeId === recipe.id;
+      const starred = state.favoriteRecipes.has(recipe.id);
+      return `
+        <div
+          class="recipe-card recipe-card--custom${armed ? ' armed' : ''}${starred ? ' favorited' : ''}"
+          ontouchend="armRecipeTouch('${recipe.id}', event)"
+          onclick="armRecipe('${recipe.id}')"
+        >
+          <div class="recipe-card-top">
+            <div class="recipe-name">${escHtml(recipe.name)}</div>
+            <div class="recipe-card-actions">
+              <button class="recipe-star-btn${starred ? ' starred' : ''}" onclick="toggleFavorite('${recipe.id}', event)" title="${starred ? 'Remove from favorites' : 'Add to favorites'}" aria-label="${starred ? 'Remove from favorites' : 'Add to favorites'}">★</button>
+              <button class="recipe-edit-btn" onclick="openRecipeBuilder('${recipe.id}'); event.stopPropagation();" title="Edit recipe" aria-label="Edit recipe">✎</button>
+            </div>
+          </div>
+          <div class="macro-badges">
+            <span class="badge badge-protein">${recipe.protein}g protein</span>
+            <span class="badge badge-carbs">${recipe.carbs}g carbs</span>
+            ${recipe.fat ? `<span class="badge badge-fat">${recipe.fat}g fat</span>` : ''}
+            <span class="badge badge-calories">${recipe.calories} cal</span>
+          </div>
+          ${armed ? buildDayPicker(recipe.id) : ''}
+        </div>
+      `;
+    }).join('');
+    return;
+  }
+
+  // Build base list from built-in RECIPES
+  let recipes = RECIPES.map((recipe, i) => ({ recipe, i, isCustom: false }));
 
   // Sort: favorites first
   recipes.sort((a, b) => {
@@ -1814,17 +1879,78 @@ function renderRecipes() {
 
   // Filter
   if (state.recipeFilter === 'favorites') {
-    recipes = recipes.filter(({ recipe }) => state.favoriteRecipes.has(recipe.id));
-  }
-
-  if (recipes.length === 0 && state.recipeFilter === 'favorites') {
-    grid.innerHTML = `<div class="recipe-favorites-empty">No favorites yet — tap ★ on any recipe to save it here.</div>`;
+    const builtInFavs = recipes.filter(({ recipe }) => state.favoriteRecipes.has(recipe.id));
+    const customFavs  = state.customRecipes
+      .filter(r => state.favoriteRecipes.has(r.id))
+      .map(recipe => ({ recipe, i: -1, isCustom: true }));
+    const combined = [...builtInFavs, ...customFavs];
+    if (combined.length === 0) {
+      grid.innerHTML = `<div class="recipe-favorites-empty">No favorites yet — tap ★ on any recipe to save it here.</div>`;
+      return;
+    }
+    grid.innerHTML = combined.map(({ recipe, i, isCustom }) => {
+      const armed   = state.armedRecipeId === recipe.id;
+      const starred = state.favoriteRecipes.has(recipe.id);
+      return `
+        <div
+          class="recipe-card${isCustom ? ' recipe-card--custom' : ''}${armed ? ' armed' : ''}${starred ? ' favorited' : ''}"
+          ${isCustom ? '' : `data-recipe-index="${i}"`}
+          ontouchend="armRecipeTouch('${recipe.id}', event)"
+          onclick="armRecipe('${recipe.id}')"
+        >
+          <div class="recipe-card-top">
+            <div class="recipe-name">${escHtml(recipe.name)}</div>
+            <div class="recipe-card-actions">
+              <button class="recipe-star-btn${starred ? ' starred' : ''}" onclick="toggleFavorite('${recipe.id}', event)" title="${starred ? 'Remove from favorites' : 'Add to favorites'}" aria-label="${starred ? 'Remove from favorites' : 'Add to favorites'}">★</button>
+              ${isCustom
+                ? `<button class="recipe-edit-btn" onclick="openRecipeBuilder('${recipe.id}'); event.stopPropagation();" title="Edit recipe" aria-label="Edit recipe">✎</button>`
+                : `<button class="recipe-remove-btn" onclick="removeRecipe(${i}, event)" title="Remove recipe" aria-label="Remove recipe">✕</button>`}
+            </div>
+          </div>
+          <div class="macro-badges">
+            <span class="badge badge-protein">${recipe.protein}g protein</span>
+            <span class="badge badge-carbs">${recipe.carbs}g carbs</span>
+            ${recipe.fat ? `<span class="badge badge-fat">${recipe.fat}g fat</span>` : ''}
+            <span class="badge badge-calories">${recipe.calories} cal</span>
+          </div>
+          ${armed ? buildDayPicker(recipe.id) : ''}
+        </div>
+      `;
+    }).join('');
     return;
   }
 
-  grid.innerHTML = recipes.map(({ recipe, i }) => {
-    const armed    = state.armedRecipeId === recipe.id;
-    const starred  = state.favoriteRecipes.has(recipe.id);
+  // "All" mode: show custom recipes first (with section header), then built-ins
+  const customCards = state.customRecipes.map(recipe => {
+    const armed   = state.armedRecipeId === recipe.id;
+    const starred = state.favoriteRecipes.has(recipe.id);
+    return `
+      <div
+        class="recipe-card recipe-card--custom${armed ? ' armed' : ''}${starred ? ' favorited' : ''}"
+        ontouchend="armRecipeTouch('${recipe.id}', event)"
+        onclick="armRecipe('${recipe.id}')"
+      >
+        <div class="recipe-card-top">
+          <div class="recipe-name">${escHtml(recipe.name)}</div>
+          <div class="recipe-card-actions">
+            <button class="recipe-star-btn${starred ? ' starred' : ''}" onclick="toggleFavorite('${recipe.id}', event)" title="${starred ? 'Remove from favorites' : 'Add to favorites'}" aria-label="${starred ? 'Remove from favorites' : 'Add to favorites'}">★</button>
+            <button class="recipe-edit-btn" onclick="openRecipeBuilder('${recipe.id}'); event.stopPropagation();" title="Edit recipe" aria-label="Edit recipe">✎</button>
+          </div>
+        </div>
+        <div class="macro-badges">
+          <span class="badge badge-protein">${recipe.protein}g protein</span>
+          <span class="badge badge-carbs">${recipe.carbs}g carbs</span>
+          ${recipe.fat ? `<span class="badge badge-fat">${recipe.fat}g fat</span>` : ''}
+          <span class="badge badge-calories">${recipe.calories} cal</span>
+        </div>
+        ${armed ? buildDayPicker(recipe.id) : ''}
+      </div>
+    `;
+  });
+
+  const builtInCards = recipes.map(({ recipe, i }) => {
+    const armed   = state.armedRecipeId === recipe.id;
+    const starred = state.favoriteRecipes.has(recipe.id);
     return `
       <div
         class="recipe-card${armed ? ' armed' : ''}${starred ? ' favorited' : ''}"
@@ -1848,7 +1974,13 @@ function renderRecipes() {
         ${armed ? buildDayPicker(recipe.id) : ''}
       </div>
     `;
-  }).join('');
+  });
+
+  const customSection = customCards.length
+    ? `<div class="recipe-section-hdr">My Recipes</div>${customCards.join('')}<div class="recipe-section-hdr">Built-in</div>`
+    : '';
+
+  grid.innerHTML = customSection + builtInCards.join('');
 }
 
 function buildDayPicker(recipeId) {
@@ -1948,7 +2080,7 @@ function renderMealCalendar() {
   if (!cal) return;
 
   const armed = state.armedRecipeId;
-  const armedRecipe = armed ? [...RECIPES, ...ETG_RECIPES].find(r => r.id === armed) : null;
+  const armedRecipe = armed ? allRecipes().find(r => r.id === armed) : null;
 
   // Build day names starting from configured week start
   const startDay = state.prefs.weekStartDay;
@@ -1961,9 +2093,10 @@ function renderMealCalendar() {
 
     const dayMeals = meals[dayIdx] || [];
 
+    const hasSwaps = (meal) => Object.keys(meal.swaps || {}).length > 0;
     const chips = dayMeals.map((meal, mealIdx) => {
       const { recipeId, members = [] } = meal;
-      const recipe = [...RECIPES, ...ETG_RECIPES].find(r => r.id === recipeId);
+      const recipe = allRecipes().find(r => r.id === recipeId);
       const label = recipe ? recipe.name : recipeId;
       const avatarBadges = MEMBERS.map(m => {
         const active   = members.includes(m.id);
@@ -1981,6 +2114,9 @@ function renderMealCalendar() {
         >
           <div class="meal-chip-top">
             <span class="meal-chip-name" title="${label}">${label}</span>
+            <button class="meal-chip-swap${hasSwaps(meal)?' meal-chip-swap--active':''}"
+              onclick="openSwapPicker(event,${state.weekOffset},${dayIdx},${mealIdx})"
+              title="Swap ingredients">⇄</button>
             <button class="meal-chip-remove" onclick="clearMeal(event,${state.weekOffset},${dayIdx},${mealIdx})" title="Remove" aria-label="Remove">✕</button>
           </div>
           <div class="chip-avatars">${avatarBadges}</div>
@@ -3087,6 +3223,7 @@ function stampMeal(weekOffset, dayIdx) {
   state.mealsByWeek[weekOffset][dayIdx].push({
     recipeId: state.armedRecipeId,
     members: MEMBERS.map(m => m.id),
+    swaps: {},
   });
   saveMeals();
   renderMealCalendar();
@@ -3735,4 +3872,352 @@ function renderStoreBanner() {
       </div>
     </div>
   `;
+}
+
+/* ============================================================
+   RECIPE BUILDER
+   ============================================================ */
+
+function handleBuilderOverlayClick(e) {
+  if (e.target === e.currentTarget) closeRecipeBuilder();
+}
+
+function openRecipeBuilder(recipeId = null) {
+  if (recipeId) {
+    const r = state.customRecipes.find(r => r.id === recipeId);
+    if (!r) return;
+    state.builder = {
+      mode: 'edit', id: recipeId,
+      name: r.name, servings: r.servings,
+      calories: r.calories, protein: r.protein, carbs: r.carbs, fat: r.fat,
+      ingredients: r.ingredients.map(i => ({
+        ...i, alternatives: (i.alternatives || []).map(a => ({ ...a }))
+      })),
+      usdaResults: {}, usdaLoading: {}
+    };
+  } else {
+    state.builder = {
+      mode: 'new', id: null,
+      name: '', servings: 4, calories: 0, protein: 0, carbs: 0, fat: 0,
+      ingredients: [{ name: '', amount: '', unit: '', alternatives: [] }],
+      usdaResults: {}, usdaLoading: {}
+    };
+  }
+  document.getElementById('recipe-builder-modal').classList.add('open');
+  renderRecipeBuilder();
+}
+
+function closeRecipeBuilder() {
+  state.builder = null;
+  document.getElementById('recipe-builder-modal').classList.remove('open');
+}
+
+function renderRecipeBuilder() {
+  const b = state.builder;
+  if (!b) return;
+  const titleEl = document.getElementById('rb-modal-title');
+  if (titleEl) titleEl.textContent = b.mode === 'edit' ? 'Edit Recipe' : 'New Recipe';
+  const body = document.getElementById('recipe-builder-body');
+  if (!body) return;
+  body.innerHTML = `
+    <div class="rb-field-row">
+      <div class="rb-field rb-field--grow">
+        <label class="rb-label">Recipe name</label>
+        <input class="rb-input" type="text" value="${escHtml(b.name)}"
+          placeholder="e.g. BBQ Chicken Rice Bowl"
+          oninput="state.builder.name=this.value">
+      </div>
+      <div class="rb-field">
+        <label class="rb-label">Servings</label>
+        <input class="rb-input rb-input--sm" type="number" min="1" max="20" value="${b.servings}"
+          oninput="state.builder.servings=+this.value||4">
+      </div>
+    </div>
+    <div class="rb-section-label">Macros per serving</div>
+    <div class="rb-macro-row">
+      ${[['calories','cal'],['protein','protein'],['carbs','carbs'],['fat','fat']].map(([f,l]) => `
+        <div class="rb-macro-chip">
+          <input class="rb-input rb-macro-input" type="number" min="0" value="${b[f]}"
+            oninput="state.builder.${f}=+this.value||0">
+          <span class="rb-macro-lbl">${l}</span>
+        </div>`).join('')}
+    </div>
+    <div class="rb-section-label">
+      Ingredients
+      <span class="rb-section-hint">Add swap options under each ingredient for weekly swapping</span>
+    </div>
+    <div id="rb-ingredients">
+      ${b.ingredients.map((ing, idx) => renderBuilderIngredient(ing, idx)).join('')}
+    </div>
+    <button class="rb-add-btn" onclick="addBuilderIngredient()">+ Add ingredient</button>
+    <div class="rb-actions">
+      ${b.mode === 'edit'
+        ? `<button class="rb-delete-btn" onclick="confirmDeleteCustomRecipe('${b.id}')">Delete recipe</button>`
+        : '<span></span>'}
+      <div class="rb-action-pair">
+        <button class="rb-cancel-btn" onclick="closeRecipeBuilder()">Cancel</button>
+        <button class="rb-save-btn" onclick="saveBuilderRecipe()">Save recipe</button>
+      </div>
+    </div>`;
+}
+
+function renderBuilderIngredient(ing, idx) {
+  const b = state.builder;
+  const results = b.usdaResults[idx] || [];
+  const loading  = b.usdaLoading[idx];
+  return `
+    <div class="rb-ing-row" id="rb-ing-${idx}">
+      <div class="rb-ing-main">
+        <input class="rb-input rb-ing-amount" type="number" min="0" step="0.25"
+          value="${ing.amount}" placeholder="Qty"
+          oninput="state.builder.ingredients[${idx}].amount=+this.value">
+        <input class="rb-input rb-ing-unit" type="text"
+          value="${escHtml(ing.unit)}" placeholder="unit"
+          oninput="state.builder.ingredients[${idx}].unit=this.value">
+        <input class="rb-input rb-ing-name" type="text"
+          value="${escHtml(ing.name)}" placeholder="Ingredient name"
+          oninput="state.builder.ingredients[${idx}].name=this.value">
+        <button class="rb-usda-btn${loading ? ' rb-usda-btn--loading' : ''}"
+          onclick="searchUSDA(${idx})" title="USDA nutrition lookup">
+          ${loading ? '…' : 'USDA'}
+        </button>
+        <button class="rb-ing-del" onclick="removeBuilderIngredient(${idx})" title="Remove">✕</button>
+      </div>
+      ${results.length ? `
+        <div class="rb-usda-results">
+          ${results.map(r => `
+            <button class="rb-usda-result"
+              onclick="applyUSDAResult(${idx},'${r.description.replace(/'/g,"\\'")}',${r.cal},${r.protein},${r.carbs},${r.fat})">
+              <span class="rb-usda-desc">${escHtml(r.description)}</span>
+              <span class="rb-usda-macros">${r.cal} cal · ${r.protein}g P · ${r.carbs}g C · ${r.fat}g F <span class="rb-usda-unit">/ 100g</span></span>
+            </button>`).join('')}
+        </div>` : ''}
+      <div class="rb-alts">
+        ${(ing.alternatives || []).map((alt, ai) => `
+          <div class="rb-alt-row">
+            <span class="rb-alt-tag">Swap</span>
+            <input class="rb-input rb-alt-amount" type="number" min="0" step="0.25"
+              value="${alt.amount}" placeholder="Qty"
+              oninput="state.builder.ingredients[${idx}].alternatives[${ai}].amount=+this.value">
+            <input class="rb-input rb-alt-unit" type="text"
+              value="${escHtml(alt.unit)}" placeholder="unit"
+              oninput="state.builder.ingredients[${idx}].alternatives[${ai}].unit=this.value">
+            <input class="rb-input rb-alt-name" type="text"
+              value="${escHtml(alt.name)}" placeholder="e.g. Sweet potato"
+              oninput="state.builder.ingredients[${idx}].alternatives[${ai}].name=this.value">
+            <button class="rb-alt-del" onclick="removeBuilderAlt(${idx},${ai})">✕</button>
+          </div>`).join('')}
+        <button class="rb-add-alt-btn" onclick="addBuilderAlt(${idx})">+ Add swap option</button>
+      </div>
+    </div>`;
+}
+
+function addBuilderIngredient() {
+  state.builder.ingredients.push({ name: '', amount: '', unit: '', alternatives: [] });
+  document.getElementById('rb-ingredients').innerHTML =
+    state.builder.ingredients.map((ing, idx) => renderBuilderIngredient(ing, idx)).join('');
+}
+
+function removeBuilderIngredient(idx) {
+  state.builder.ingredients.splice(idx, 1);
+  document.getElementById('rb-ingredients').innerHTML =
+    state.builder.ingredients.map((ing, i) => renderBuilderIngredient(ing, i)).join('');
+}
+
+function addBuilderAlt(ingIdx) {
+  state.builder.ingredients[ingIdx].alternatives.push({ name: '', amount: '', unit: '' });
+  document.getElementById('rb-ingredients').innerHTML =
+    state.builder.ingredients.map((ing, idx) => renderBuilderIngredient(ing, idx)).join('');
+}
+
+function removeBuilderAlt(ingIdx, altIdx) {
+  state.builder.ingredients[ingIdx].alternatives.splice(altIdx, 1);
+  document.getElementById('rb-ingredients').innerHTML =
+    state.builder.ingredients.map((ing, idx) => renderBuilderIngredient(ing, idx)).join('');
+}
+
+function saveBuilderRecipe() {
+  const b = state.builder;
+  if (!b.name.trim()) { alert('Please enter a recipe name.'); return; }
+  const recipe = {
+    id: b.id || ('custom-' + Date.now()),
+    name: b.name.trim(),
+    custom: true,
+    servings: b.servings || 4,
+    calories: b.calories || 0,
+    protein:  b.protein  || 0,
+    carbs:    b.carbs    || 0,
+    fat:      b.fat      || 0,
+    ingredients: b.ingredients
+      .filter(i => i.name.trim())
+      .map(i => ({
+        name: i.name.trim(),
+        amount: +i.amount || 0,
+        unit: i.unit.trim(),
+        alternatives: (i.alternatives || [])
+          .filter(a => a.name.trim())
+          .map(a => ({ name: a.name.trim(), amount: +a.amount || 0, unit: a.unit.trim() }))
+      })),
+    portionIngredients: autoPortionIngredients(b.ingredients.filter(i => i.name.trim())),
+  };
+  if (b.mode === 'edit') {
+    const idx = state.customRecipes.findIndex(r => r.id === b.id);
+    if (idx !== -1) state.customRecipes[idx] = recipe; else state.customRecipes.push(recipe);
+  } else {
+    state.customRecipes.push(recipe);
+  }
+  saveCustomRecipes();
+  closeRecipeBuilder();
+  renderRecipes();
+}
+
+function autoPortionIngredients(ings) {
+  const result = [];
+  const prot = ings.find(i => getIngredientMacroType(i.name) === 'protein');
+  const carb  = ings.find(i => getIngredientMacroType(i.name) === 'carbs');
+  if (prot) result.push({ name: prot.name, gramsPerServing: 170, displayUnit: 'oz', macroType: 'protein' });
+  if (carb)  result.push({ name: carb.name,  gramsPerServing: 150, displayUnit: 'oz', macroType: 'carbs'   });
+  return result;
+}
+
+function confirmDeleteCustomRecipe(recipeId) {
+  if (!confirm('Delete this recipe? This cannot be undone.')) return;
+  deleteCustomRecipe(recipeId);
+}
+
+function deleteCustomRecipe(recipeId) {
+  state.customRecipes = state.customRecipes.filter(r => r.id !== recipeId);
+  saveCustomRecipes();
+  closeRecipeBuilder();
+  renderRecipes();
+}
+
+async function searchUSDA(ingIdx) {
+  const ing = state.builder?.ingredients[ingIdx];
+  if (!ing?.name?.trim()) return;
+  state.builder.usdaLoading[ingIdx] = true;
+  document.getElementById('rb-ingredients').innerHTML =
+    state.builder.ingredients.map((ing, idx) => renderBuilderIngredient(ing, idx)).join('');
+  try {
+    const q = encodeURIComponent(ing.name.trim());
+    const res = await fetch(
+      `https://api.nal.usda.gov/fdc/v1/foods/search?query=${q}&api_key=DEMO_KEY&pageSize=5&dataType=Foundation,SR%20Legacy`
+    );
+    const data = await res.json();
+    const get = (f, id) => (f.foodNutrients || []).find(n => n.nutrientId === id)?.value || 0;
+    state.builder.usdaResults[ingIdx] = (data.foods || []).slice(0, 5).map(f => ({
+      description: f.description,
+      cal:     Math.round(get(f, 1008)),
+      protein: Math.round(get(f, 1003) * 10) / 10,
+      carbs:   Math.round(get(f, 1005) * 10) / 10,
+      fat:     Math.round(get(f, 1004) * 10) / 10,
+    }));
+  } catch (_) {
+    state.builder.usdaResults[ingIdx] = [];
+  }
+  state.builder.usdaLoading[ingIdx] = false;
+  document.getElementById('rb-ingredients').innerHTML =
+    state.builder.ingredients.map((ing, idx) => renderBuilderIngredient(ing, idx)).join('');
+}
+
+function applyUSDAResult(ingIdx, description, cal, protein, carbs, fat) {
+  if (!state.builder) return;
+  state.builder.ingredients[ingIdx].name = description;
+  state.builder.usdaResults[ingIdx] = [];
+  const ing = state.builder.ingredients[ingIdx];
+  const UNIT_G = { g: 1, grams: 1, oz: 28.35, lbs: 453.59, lb: 453.59, cups: 240, cup: 240, tbsp: 15, tsp: 5 };
+  const grams = (UNIT_G[(ing.unit || '').toLowerCase()] || 0) * (+ing.amount || 0);
+  if (grams > 0) {
+    const servings = state.builder.servings || 1;
+    const f = grams / 100 / servings;
+    const add = { cal: Math.round(cal * f), protein: Math.round(protein * f), carbs: Math.round(carbs * f), fat: Math.round(fat * f) };
+    if (confirm(`Add ${add.cal} cal, ${add.protein}g protein, ${add.carbs}g carbs, ${add.fat}g fat per serving to this recipe's totals?`)) {
+      state.builder.calories += add.cal;
+      state.builder.protein  += add.protein;
+      state.builder.carbs    += add.carbs;
+      state.builder.fat      += add.fat;
+    }
+  }
+  renderRecipeBuilder();
+}
+
+/* ============================================================
+   SWAP PICKER
+   ============================================================ */
+
+function openSwapPicker(event, weekOffset, dayIdx, mealIdx) {
+  event.stopPropagation();
+  const existing = document.getElementById('swap-picker-sheet');
+  if (existing) { closeSwapPicker(); return; }
+  const meal = state.mealsByWeek[weekOffset]?.[dayIdx]?.[mealIdx];
+  if (!meal) return;
+  const recipe = allRecipes().find(r => r.id === meal.recipeId);
+  if (!recipe) return;
+  const swappable = (recipe.ingredients || []).filter(i => i.amount > 0 && (i.alternatives?.length || meal.swaps?.[i.name.toLowerCase().trim()]));
+  const el = document.createElement('div');
+  el.id = 'swap-picker-sheet';
+  el.className = 'sp-overlay';
+  el.innerHTML = `
+    <div class="sp-sheet">
+      <div class="sp-handle"></div>
+      <div class="sp-header">
+        <span class="sp-title">Swap ingredients</span>
+        <span class="sp-recipe">${escHtml(recipe.name)}</span>
+      </div>
+      ${!swappable.length
+        ? `<p class="sp-empty">No swap options defined. Add alternatives to ingredients in the recipe builder.</p>`
+        : swappable.map(ing => {
+            const key = ing.name.toLowerCase().trim();
+            const activeSwap = meal.swaps?.[key];
+            return `
+              <div class="sp-ing-row">
+                <div class="sp-ing-label">${escHtml(ing.name)}</div>
+                <div class="sp-ing-opts">
+                  <button class="sp-opt${!activeSwap ? ' sp-opt--active' : ''}"
+                    onclick="applySwap(${weekOffset},${dayIdx},${mealIdx},'${key.replace(/'/g,"\\'")}',null,0,'')">
+                    Default
+                  </button>
+                  ${(ing.alternatives || []).map(alt => `
+                    <button class="sp-opt${activeSwap?.name === alt.name ? ' sp-opt--active' : ''}"
+                      onclick="applySwap(${weekOffset},${dayIdx},${mealIdx},'${key.replace(/'/g,"\\'")}','${alt.name.replace(/'/g,"\\'")}',${alt.amount || 0},'${(alt.unit||'').replace(/'/g,"\\'")}')">
+                      ${escHtml(alt.name)}
+                    </button>`).join('')}
+                </div>
+              </div>`;
+          }).join('')}
+      <button class="sp-done-btn" onclick="closeSwapPicker()">Done</button>
+    </div>`;
+  document.body.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('sp-overlay--visible'));
+  // Store context for re-rendering
+  el.dataset.weekOffset = weekOffset;
+  el.dataset.dayIdx = dayIdx;
+  el.dataset.mealIdx = mealIdx;
+}
+
+function closeSwapPicker() {
+  const el = document.getElementById('swap-picker-sheet');
+  if (!el) return;
+  el.classList.remove('sp-overlay--visible');
+  el.addEventListener('transitionend', () => el.remove(), { once: true });
+}
+
+function applySwap(weekOffset, dayIdx, mealIdx, ingKey, altName, altAmount, altUnit) {
+  const meal = state.mealsByWeek[weekOffset]?.[dayIdx]?.[mealIdx];
+  if (!meal) return;
+  if (!meal.swaps) meal.swaps = {};
+  if (altName) {
+    meal.swaps[ingKey] = { name: altName, amount: +altAmount || 0, unit: altUnit || '' };
+  } else {
+    delete meal.swaps[ingKey];
+  }
+  saveMeals();
+  renderMealCalendar();
+  renderDownstream();
+  // Refresh the picker to show updated active state
+  const el = document.getElementById('swap-picker-sheet');
+  if (el) {
+    el.remove();
+    openSwapPicker({ stopPropagation: () => {} }, weekOffset, dayIdx, mealIdx);
+  }
 }

@@ -131,7 +131,10 @@
       <div class="card">
         <div class="card-header">
           Pick recipes for the week
-          <button class="browse-recipes-btn" onclick="openEtgBrowser()">Browse Eat The Gains ↗</button>
+          <div class="card-header-actions">
+            <button class="recipe-create-btn" onclick="openRecipeBuilder()">+ Create</button>
+            <button class="browse-recipes-btn" onclick="openEtgBrowser()">Browse Eat The Gains ↗</button>
+          </div>
         </div>
         <div class="recipe-filter-bar" id="recipe-filter-bar"></div>
         <div class="recipe-grid" id="recipe-grid">
@@ -497,6 +500,23 @@
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="recipe-builder-modal" onclick="handleBuilderOverlayClick(event)">
+    <div class="modal modal--recipe-builder">
+      <div class="modal-header">
+        <div>
+          <h2 class="modal-title" id="rb-modal-title">New Recipe</h2>
+          <p class="modal-subtitle">Saved to My Recipes</p>
+        </div>
+        <button class="modal-close" onclick="closeRecipeBuilder()" aria-label="Close">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M12 4L4 12M4 4l8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body" id="recipe-builder-body"></div>
     </div>
   </div>
 

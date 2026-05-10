@@ -301,7 +301,10 @@ function buildWeekPlan() {
       if (!recipe) continue;
 
       const activeMembers = members.filter(mid => !isExcluded(mid));
-      const calPortionSum = activeMembers.reduce((s, mid) => s + getMemberScaleFactor(mid), 0);
+      const calPortionSum = activeMembers.reduce((s, mid) => {
+        const ps = state.memberPortionScale[`${mid}|${recipeId}`] ?? 1.0;
+        return s + getMemberScaleFactor(mid) * ps;
+      }, 0);
       const calBatchScale = calPortionSum / (recipe.servings || 4);
 
       // In Macro mode, build per-macroType batch scales from portionIngredients
@@ -310,7 +313,10 @@ function buildWeekPlan() {
         for (const mt of ['protein', 'carbs', 'fat']) {
           const portionIng = (recipe.portionIngredients || []).find(i => i.macroType === mt);
           if (portionIng) {
-            const sum = activeMembers.reduce((s, mid) => s + getIngredientScaleFactor(mid, portionIng, recipe), 0);
+            const sum = activeMembers.reduce((s, mid) => {
+              const ps = state.memberPortionScale[`${mid}|${recipeId}`] ?? 1.0;
+              return s + getIngredientScaleFactor(mid, portionIng, recipe) * ps;
+            }, 0);
             macroBatchScale[mt] = sum / (recipe.servings || 4);
           }
         }
@@ -1251,9 +1257,9 @@ function setRecipeFilter(filter) {
 function loadPrefs() {
   try {
     const raw = localStorage.getItem(PREFS_KEY);
-    if (raw) return { weekStartDay: 1, prepMode: 'batch', ...JSON.parse(raw) };
+    if (raw) return { weekStartDay: 1, prepMode: 'batch', prepDays: 7, ...JSON.parse(raw) };
   } catch (_) {}
-  return { weekStartDay: 1, prepMode: 'batch' };
+  return { weekStartDay: 1, prepMode: 'batch', prepDays: 7 };
 }
 
 function savePrefs() {
@@ -1847,8 +1853,9 @@ function renderRecipes() {
 
 function buildDayPicker(recipeId) {
   const startDay  = state.prefs.weekStartDay;
+  const prepDays  = state.prefs.prepDays || 7;
   const weekMeals = state.mealsByWeek[state.weekOffset] || [];
-  const chips = Array.from({ length: 7 }, (_, i) => {
+  const chips = Array.from({ length: prepDays }, (_, i) => {
     const label   = ALL_DAYS[(startDay + i) % 7];
     const hasMeal = (weekMeals[i] || []).some(m => m.recipeId === recipeId);
     return `<button class="recipe-day-chip${hasMeal ? ' has-meal' : ''}" onclick="stampMealFromPicker(event,${i})">${label}${hasMeal ? '<span class="recipe-day-check">✓</span>' : ''}</button>`;
@@ -1877,7 +1884,12 @@ function renderMealCalendar() {
   // Card header: title + prev/next arrows + prefs gear
   const header = document.getElementById('meal-cal-header');
   if (header) {
-    const label = monday.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    const prepDays = state.prefs.prepDays || 7;
+    const endDate  = new Date(monday);
+    endDate.setDate(monday.getDate() + prepDays - 1);
+    const startFmt = monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const endFmt   = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const label    = `${startFmt} – ${endFmt}`;
     header.innerHTML = `
       <span>Meal calendar</span>
       <div class="cal-header-right">
@@ -1901,12 +1913,21 @@ function renderMealCalendar() {
   if (prefsPanel) {
     if (state.calPrefsOpen) {
       const startDay = state.prefs.weekStartDay;
+      const prepDays = state.prefs.prepDays || 7;
       prefsPanel.innerHTML = `
         <div class="cal-prefs-row">
           <span class="cal-prefs-label">Week starts on</span>
           <div class="cal-prefs-days">
             ${ALL_DAYS.map((d, i) => `
               <button class="cal-prefs-day-btn${startDay === i ? ' active' : ''}" onclick="setWeekStartDay(${i})">${d}</button>
+            `).join('')}
+          </div>
+        </div>
+        <div class="cal-prefs-row">
+          <span class="cal-prefs-label">Prep period</span>
+          <div class="cal-prefs-days">
+            ${[5, 7, 10, 14].map(n => `
+              <button class="cal-prefs-day-btn${prepDays === n ? ' active' : ''}" onclick="setPrepDays(${n})">${n}d</button>
             `).join('')}
           </div>
         </div>
@@ -1931,7 +1952,8 @@ function renderMealCalendar() {
 
   // Build day names starting from configured week start
   const startDay = state.prefs.weekStartDay;
-  const weekDayNames = Array.from({ length: 7 }, (_, i) => ALL_DAYS[(startDay + i) % 7]);
+  const prepDaysGrid = state.prefs.prepDays || 7;
+  const weekDayNames = Array.from({ length: prepDaysGrid }, (_, i) => ALL_DAYS[(startDay + i) % 7]);
 
   cal.innerHTML = weekDayNames.map((name, dayIdx) => {
     const date = new Date(monday);
@@ -2020,26 +2042,39 @@ function toggleCalPrefs() {
 
 function setWeekStartDay(dayIndex) {
   state.prefs.weekStartDay = dayIndex;
-  state.weekOffset = 0; // reset to current week under new start day
+  state.weekOffset = 0;
   savePrefs();
   renderMealCalendar();
 }
 
+function setPrepDays(n) {
+  state.prefs.prepDays = n;
+  state.weekOffset = 0;
+  savePrefs();
+  renderAll();
+}
+
 function getWeekStart(offset) {
   const startDay = state.prefs.weekStartDay; // 0=Sun … 6=Sat
+  const prepDays = state.prefs.prepDays || 7;
   const today = new Date();
   const dow = today.getDay();
   const diff = (dow - startDay + 7) % 7;
   const weekStart = new Date(today);
-  weekStart.setDate(today.getDate() - diff + offset * 7);
+  weekStart.setDate(today.getDate() - diff + offset * prepDays);
   weekStart.setHours(0, 0, 0, 0);
   return weekStart;
 }
 
 function getMealsForWeek(offset) {
+  const n = state.prefs.prepDays || 7;
   if (!state.mealsByWeek[offset]) {
-    state.mealsByWeek[offset] = Array(7).fill(null).map(() => []);
+    state.mealsByWeek[offset] = Array(n).fill(null).map(() => []);
     saveMeals();
+  } else {
+    while (state.mealsByWeek[offset].length < n) {
+      state.mealsByWeek[offset].push([]);
+    }
   }
   return state.mealsByWeek[offset];
 }
@@ -2362,7 +2397,7 @@ function setMemberMealsPerDay(memberId, delta) {
 function setMemberPortionScale(memberId, recipeId, rawValue) {
   state.memberPortionScale[`${memberId}|${recipeId}`] = parseInt(rawValue, 10) / 100;
   saveMemberPortionScale();
-  renderPortionTable();
+  renderDownstream();
 }
 
 function resetPortionScale(memberId, recipeId) {

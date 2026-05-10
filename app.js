@@ -2052,6 +2052,62 @@ function setPrepDays(n) {
   state.weekOffset = 0;
   savePrefs();
   renderAll();
+  if (n > 7) showFoodSafetySheet(n);
+}
+
+function showFoodSafetySheet(prepDays) {
+  const existing = document.getElementById('food-safety-sheet');
+  if (existing) existing.remove();
+
+  const fridgeDays  = 4;
+  const freezeDays  = prepDays - fridgeDays;
+  const freezeLabel = prepDays === 10 ? 'Days 5–10' : 'Days 5–14';
+
+  const el = document.createElement('div');
+  el.id = 'food-safety-sheet';
+  el.className = 'fs-overlay';
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-modal', 'true');
+  el.innerHTML = `
+    <div class="fs-sheet">
+      <div class="fs-handle"></div>
+      <div class="fs-header">
+        <span class="fs-title">Plan to freeze days 5+</span>
+        <span class="fs-source">FDA food safety guideline</span>
+      </div>
+      <p class="fs-body">
+        Cooked proteins, grains, and vegetables stay safe in the refrigerator for up to
+        <strong>4 days</strong>. With a ${prepDays}-day prep period, anything not eaten
+        in the first four days should go straight into the freezer — not the fridge.
+      </p>
+      <div class="fs-rows">
+        <div class="fs-row fs-row--fridge">
+          <div class="fs-row-days">Days 1–4</div>
+          <div class="fs-row-zone">Fridge</div>
+          <div class="fs-row-note">Grab and go, no thawing needed</div>
+        </div>
+        <div class="fs-row fs-row--freeze">
+          <div class="fs-row-days">${freezeLabel}</div>
+          <div class="fs-row-zone">Freezer</div>
+          <div class="fs-row-note">Move to fridge the night before eating</div>
+        </div>
+      </div>
+      <p class="fs-footer">
+        Cooked meals keep safely in the freezer for up to 2–3 months. Use the freezer
+        zones in your Stage 6 fridge map to plan which containers go where.
+      </p>
+      <button class="fs-btn" onclick="closeFoodSafetySheet()">Got it</button>
+    </div>
+  `;
+  document.body.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('fs-overlay--visible'));
+}
+
+function closeFoodSafetySheet() {
+  const el = document.getElementById('food-safety-sheet');
+  if (!el) return;
+  el.classList.remove('fs-overlay--visible');
+  el.addEventListener('transitionend', () => el.remove(), { once: true });
 }
 
 function getWeekStart(offset) {

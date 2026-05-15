@@ -9,6 +9,164 @@
 <body>
 
   <!-- ============================================================
+       LOADING SCREEN
+       Shown briefly while Firebase resolves auth state.
+       ============================================================ -->
+  <div id="loading-screen" class="loading-screen">
+    <div class="loading-logo">
+      <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" width="48" height="48">
+        <defs>
+          <linearGradient id="ld-bg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#26B48A"/>
+            <stop offset="100%" stop-color="#0F6E56"/>
+          </linearGradient>
+        </defs>
+        <rect width="36" height="36" rx="8" fill="url(#ld-bg)"/>
+        <path d="M10.5 25.5 V8.5 h5 a6 6 0 0 1 0 12 h-5" stroke="white" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <path d="M10.5 30.5 h15" stroke="white" stroke-width="2.2" stroke-linecap="round" opacity="0.9"/>
+        <path d="M18 25 v5.5" stroke="white" stroke-width="2.2" stroke-linecap="round" opacity="0.9"/>
+        <circle cx="18" cy="24" r="1.8" fill="white" opacity="0.85"/>
+      </svg>
+    </div>
+    <div class="loading-spinner"></div>
+  </div>
+
+  <!-- ============================================================
+       AUTH SCREEN
+       Full-page sign-in / create account view.
+       ============================================================ -->
+  <div id="auth-screen" class="auth-screen hidden">
+    <div class="auth-card">
+
+      <!-- Brand -->
+      <div class="auth-brand">
+        <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" width="40" height="40">
+          <defs>
+            <linearGradient id="ab-bg" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#26B48A"/>
+              <stop offset="100%" stop-color="#0F6E56"/>
+            </linearGradient>
+          </defs>
+          <rect width="36" height="36" rx="8" fill="url(#ab-bg)"/>
+          <path d="M10.5 25.5 V8.5 h5 a6 6 0 0 1 0 12 h-5" stroke="white" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          <path d="M10.5 30.5 h15" stroke="white" stroke-width="2.2" stroke-linecap="round" opacity="0.9"/>
+          <path d="M18 25 v5.5" stroke="white" stroke-width="2.2" stroke-linecap="round" opacity="0.9"/>
+          <circle cx="18" cy="24" r="1.8" fill="white" opacity="0.85"/>
+        </svg>
+        <div class="auth-brand-text">
+          <span class="auth-brand-name">Prep<span class="auth-brand-tare">Tare</span></span>
+          <span class="auth-brand-tagline">Zero guess. One batch. Every week.</span>
+        </div>
+      </div>
+
+      <!-- Sign in / Create account tabs -->
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-tab="signin" onclick="switchAuthTab('signin')">Sign In</button>
+        <button class="auth-tab" data-tab="signup" onclick="switchAuthTab('signup')">Create Account</button>
+      </div>
+
+      <!-- Error / success message -->
+      <div class="auth-error hidden" id="auth-error"></div>
+
+      <!-- Email + password form -->
+      <form id="auth-form" onsubmit="handleAuthSubmit(event)" novalidate>
+        <div id="auth-name-row" class="hidden">
+          <input type="text" id="auth-name" class="auth-input" placeholder="Your name"
+                 autocomplete="given-name" />
+        </div>
+        <input type="email" id="auth-email" class="auth-input" placeholder="Email address"
+               autocomplete="email" required />
+        <input type="password" id="auth-password" class="auth-input" placeholder="Password"
+               autocomplete="current-password" required />
+        <button type="submit" class="auth-submit" id="auth-submit-btn">Sign In</button>
+        <button type="button" class="auth-forgot" id="auth-forgot-btn"
+                onclick="handleForgotPassword()">Forgot password?</button>
+      </form>
+
+      <div class="auth-divider"><span>or</span></div>
+
+      <!-- SSO buttons -->
+      <div class="auth-sso">
+        <button class="sso-btn sso-google" onclick="handleSSOSignIn('google')">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+            <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/>
+            <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+            <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+          </svg>
+          Continue with Google
+        </button>
+        <button class="sso-btn sso-apple" onclick="handleSSOSignIn('apple')">
+          <svg width="17" height="18" viewBox="0 0 17 18" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path d="M14.26 9.55c-.02-2.58 2.11-3.83 2.21-3.89-1.21-1.76-3.08-2-3.74-2.02-1.59-.16-3.1.94-3.91.94-.8 0-2.04-.92-3.36-.89C3.83 3.72 2.3 4.63 1.47 6.07.82 7.22.15 9.44.64 11.9c.66 3.29 2.48 5.5 4.2 6.49.99.58 2.13.79 3.05.74 1.19-.05 2.09-.78 3.12-.78 1.03 0 1.91.74 3.12.72 1.49-.02 2.6-1.04 3.27-1.88C14.35 16.06 14.27 9.57 14.26 9.55zM11.73 2.5c.79-.99 1.33-2.36 1.18-3.73-1.14.05-2.52.77-3.34 1.74-.74.86-1.38 2.23-1.2 3.54 1.27.1 2.56-.65 3.36-1.55z"/>
+          </svg>
+          Continue with Apple
+        </button>
+        <button class="sso-btn sso-facebook" onclick="handleSSOSignIn('facebook')">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="9" cy="9" r="9" fill="#1877F2"/>
+            <path d="M12.375 11.625l.375-2.625h-2.25V7.313c0-.713.344-1.313 1.388-1.313H13V3.694A14.78 14.78 0 0 0 10.969 3.5c-2.25 0-3.75 1.388-3.75 3.938v2.062H5.25v2.625h1.969V18a7.24 7.24 0 0 0 2.156 0v-6.375h1.875l.375-2.625h-2.25V7.438c0-.75.375-1.313 1.25-1.313h1.75V3.75" fill="white"/>
+          </svg>
+          Continue with Facebook
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============================================================
+       ONBOARDING SCREEN
+       5-step wizard for new users.
+       ============================================================ -->
+  <div id="onboarding-screen" class="onboarding-screen hidden">
+    <div class="onb-card">
+      <div class="onb-header">
+        <div class="onb-brand">
+          <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" width="28" height="28">
+            <defs>
+              <linearGradient id="ob-bg" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#26B48A"/>
+                <stop offset="100%" stop-color="#0F6E56"/>
+              </linearGradient>
+            </defs>
+            <rect width="36" height="36" rx="8" fill="url(#ob-bg)"/>
+            <path d="M10.5 25.5 V8.5 h5 a6 6 0 0 1 0 12 h-5" stroke="white" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <path d="M10.5 30.5 h15" stroke="white" stroke-width="2.2" stroke-linecap="round" opacity="0.9"/>
+            <path d="M18 25 v5.5" stroke="white" stroke-width="2.2" stroke-linecap="round" opacity="0.9"/>
+            <circle cx="18" cy="24" r="1.8" fill="white" opacity="0.85"/>
+          </svg>
+          <span class="onb-brand-name">PrepTare</span>
+        </div>
+        <span class="onb-step-label" id="onb-step-label">Step 1 of 5</span>
+      </div>
+
+      <div class="onb-progress-bar">
+        <div class="onb-progress-fill" id="onb-progress-fill" style="width:20%"></div>
+      </div>
+
+      <!-- Step content injected here by onboarding.js -->
+      <div class="onb-body" id="onb-content"></div>
+
+      <p class="onb-error hidden" id="onb-step-error"></p>
+
+      <div class="onb-footer">
+        <button class="onb-btn onb-btn--back hidden" id="onb-back" onclick="onbBack()">
+          ← Back
+        </button>
+        <button class="onb-btn onb-btn--next" id="onb-next" onclick="onbNext()">
+          Continue
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       MAIN APP WRAPPER
+       Hidden until auth + onboarding are resolved.
+       ============================================================ -->
+  <div id="app-wrapper" class="hidden">
+
+  <!-- ============================================================
        APP HEADER
        ============================================================ -->
   <header class="app-header">
@@ -44,7 +202,7 @@
         </div>
       </div>
 
-      <!-- Right: week chip + dark mode toggle -->
+      <!-- Right: week chip + dark mode toggle + user menu -->
       <div class="header-actions">
         <span class="week-chip" id="week-label">Week of May 5, 2026</span>
         <button class="theme-toggle" id="theme-toggle" title="Toggle dark mode" aria-label="Toggle dark mode">
@@ -63,6 +221,16 @@
             <line x1="4.5" y1="11.5" x2="3.4" y2="12.6"/>
           </svg>
         </button>
+        <button class="user-menu-btn" id="user-menu-btn" onclick="toggleUserMenu()" aria-label="Account menu">
+          <span class="user-menu-avatar" id="user-menu-avatar">?</span>
+        </button>
+        <div class="user-menu-dropdown hidden" id="user-menu-dropdown">
+          <div class="user-menu-info" id="user-menu-info"></div>
+          <hr class="user-menu-divider"/>
+          <button class="user-menu-item" onclick="openSettings()">Profile &amp; Settings</button>
+          <hr class="user-menu-divider"/>
+          <button class="user-menu-item user-menu-item--danger" onclick="authSignOut()">Sign Out</button>
+        </div>
       </div>
 
     </div>
@@ -520,6 +688,32 @@
     </div>
   </div>
 
+  <!-- ============================================================
+       SETTINGS PANEL
+       Full-screen overlay; shown/hidden by settings.js
+       ============================================================ -->
+  <div id="settings-panel" class="settings-panel hidden">
+    <div class="settings-header">
+      <button class="settings-back-btn" onclick="closeSettings()">
+        &#8592; Back
+      </button>
+      <h2 class="settings-title">Profile &amp; Settings</h2>
+    </div>
+    <div class="settings-body" id="settings-body">
+      <!-- Rendered by settings.js -->
+    </div>
+  </div>
+
+  </div><!-- /#app-wrapper -->
+
+  <!-- Firebase SDKs (loaded via CDN — no build step required) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
   <script src="app.js"></script>
+  <script src="auth.js"></script>
+  <script src="onboarding.js"></script>
+  <script src="settings.js"></script>
 </body>
 </html>

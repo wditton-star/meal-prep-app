@@ -58,8 +58,29 @@ function loadMembers() {
   } catch (_) {}
   return MEMBER_DEFAULTS.map(m => ({ ...m, maintenance: { ...m.maintenance } }));
 }
+// Debounced Firestore sync — batches rapid save calls into one write.
+// _firestoreSyncEnabled is false during initMainApp so the initial
+// localStorage population doesn't trigger unnecessary Firestore writes.
+let _firestoreSyncEnabled = false;
+let _firestoreSyncTimer   = null;
+
+function _syncToFirestore() {
+  if (!_firestoreSyncEnabled) return;
+  const uid = typeof currentUser !== 'undefined' ? currentUser?.uid : null;
+  if (!uid || typeof saveUserProfile !== 'function') return;
+  clearTimeout(_firestoreSyncTimer);
+  _firestoreSyncTimer = setTimeout(() => {
+    saveUserProfile(uid, {
+      members:      MEMBERS,
+      memberPhases: state.memberPhases,
+      memberMacros: state.memberMacros,
+    }).catch(err => console.warn('PrepTare: Firestore sync failed', err));
+  }, 1500);
+}
+
 function saveMembers() {
   localStorage.setItem('prepTareMembers', JSON.stringify(MEMBERS));
+  _syncToFirestore();
 }
 function generateInitials(name) {
   const parts = name.trim().split(/\s+/);
@@ -300,7 +321,7 @@ function buildWeekPlan() {
       const recipe = allRecipes().find(r => r.id === recipeId);
       if (!recipe) continue;
 
-      const activeMembers = members.filter(mid => !isExcluded(mid));
+      const activeMembers = members.filter(mid => !isExcluded(mid) && MEMBERS.some(m => m.id === mid));
       const calPortionSum = activeMembers.reduce((s, mid) => {
         const ps = state.memberPortionScale[`${mid}|${recipeId}`] ?? 1.0;
         return s + getMemberScaleFactor(mid) * ps;
@@ -493,6 +514,7 @@ function generateBatchSteps(plan) {
 
 function getMemberScaleFactor(memberId) {
   const member = MEMBERS.find(m => m.id === memberId);
+  if (!member) return 1; // stale meal references a member that no longer exists
   const phase = state.memberPhases[memberId] || 'maintenance';
   const active = state.memberMacros[memberId]?.[phase]?.cal || member.maintenance.cal;
   return active / member.maintenance.cal;
@@ -527,6 +549,7 @@ function loadMemberPhases() {
 
 function saveMemberPhases() {
   localStorage.setItem('prepTareMemberPhases', JSON.stringify(state.memberPhases));
+  _syncToFirestore();
 }
 
 function initMemberMacros(maintenance) {
@@ -563,6 +586,7 @@ function loadMemberMacros() {
 
 function saveMemberMacros() {
   localStorage.setItem('prepTareMemberMacros', JSON.stringify(state.memberMacros));
+  _syncToFirestore();
 }
 
 function loadExcludedMembers() {
@@ -1366,18 +1390,344 @@ const _calc = { memberId: MEMBERS[0].id, gender: 'male', activity: 1.55 };
    3. INIT
    Called once when the DOM is ready.
    ============================================================ */
-document.addEventListener('DOMContentLoaded', () => {
+// Called by auth.js once the user is authenticated and onboarding is complete.
+// profile comes from Firestore; we sync it into local state before rendering.
+function initMainApp(profile) {
+  // If a different user logged in, wipe stale localStorage so their data
+  // doesn't bleed into the new session.
+  const uid = typeof currentUser !== 'undefined' ? currentUser?.uid : null;
+  const storedUid = localStorage.getItem('preptareCurrentUid');
+  if (uid && storedUid && storedUid !== uid) {
+    _clearUserLocalStorage();
+  }
+  if (uid) localStorage.setItem('preptareCurrentUid', uid);
+
+  if (profile?.members?.length) {
+    MEMBERS = profile.members.map(m => ({
+      ...m,
+      maintenance: { ...m.maintenance },
+    }));
+    saveMembers();
+  }
+
+  // Replace (don't merge) so new-user member IDs don't get mixed with old localStorage IDs
+  // Replace (don't merge) member phases so new-user IDs are correct
+  if (profile?.memberPhases) {
+    state.memberPhases = { ...profile.memberPhases };
+  } else {
+    state.memberPhases = Object.fromEntries(MEMBERS.map(m => [m.id, 'maintenance']));
+  }
+  saveMemberPhases();
+
+  // Always rebuild memberMacros from MEMBERS — prevents the crash in renderMacroTargets
+  // where state.memberMacros[member.id] is undefined for new users.
+  state.memberMacros = Object.fromEntries(
+    MEMBERS.map(m => [
+      m.id,
+      profile?.memberMacros?.[m.id] || initMemberMacros(m.maintenance),
+    ])
+  );
+  saveMemberMacros();
+
+  if (profile?.prefs?.prepPeriod) {
+    state.prefs.prepPeriod = profile.prefs.prepPeriod;
+    savePrefs();
+  }
+  if (profile?.prefs?.units) {
+    state.portionUnit = profile.prefs.units === 'metric' ? 'metric' : 'imperial';
+    localStorage.setItem('preptarePortionUnit', state.portionUnit);
+  }
+  if (profile?.mode) {
+    state.portionMode = profile.mode === 'basic' ? 'simple' : 'macro';
+    localStorage.setItem('preptarePortionMode', state.portionMode);
+  }
+
+  renderUserMenu(profile);
+  showMainApp();
+
   renderAll();
   renderMealCalendar();
   setupNavigation();
   updateProgress();
-  fetchBlsPrices(); // fire-and-forget; updates grocery list when data arrives
+  fetchBlsPrices();
 
   document.getElementById('theme-toggle').addEventListener('click', () => {
     const isDark = document.documentElement.classList.toggle('dark');
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
   });
+
+  // Start first-run tour for new users — Firestore is source of truth,
+  // so clear any stale localStorage flag if the profile says tour hasn't run.
+  if (!profile?.firstRunTourComplete) {
+    localStorage.removeItem('preptareTourComplete');
+    setTimeout(startFirstRunTour, 600);
+  }
+
+  // Enable Firestore sync now that initial state is loaded — any save calls
+  // from here on are genuine user changes that should persist across sessions.
+  _firestoreSyncEnabled = true;
+}
+
+function _clearUserLocalStorage() {
+  [
+    'prepTareMembers','prepTareMemberPhases','prepTareMemberMacros',
+    'prepTareMeals','prepTareCalcInputs','prepTarePrefs',
+    'prepTareExcludedMembers','prepTareGroceryPrices','prepTareFavorites',
+    'prepTareMemberMealsPerDay','prepTareContainerAssignments',
+    'prepTareMemberPortionScale','prepTareCustomRecipes','preptareTourComplete',
+  ].forEach(k => localStorage.removeItem(k));
+}
+
+function renderUserMenu(profile) {
+  const user     = typeof currentUser !== 'undefined' ? currentUser : null;
+  const name     = profile?.displayName || user?.displayName || user?.email || 'Account';
+  const initials = name.split(/\s+/).map(w => w[0]).join('').substring(0, 2).toUpperCase();
+  const avatar   = document.getElementById('user-menu-avatar');
+  const info     = document.getElementById('user-menu-info');
+  if (avatar) avatar.textContent = initials;
+  if (info) {
+    info.innerHTML = `
+      <span class="user-menu-name">${escapeHtml(name)}</span>
+      <span class="user-menu-email">${escapeHtml(user?.email || '')}</span>`;
+  }
+}
+
+function toggleUserMenu() {
+  const dd = document.getElementById('user-menu-dropdown');
+  if (dd) dd.classList.toggle('hidden');
+}
+
+// Close user menu when clicking outside
+document.addEventListener('click', (e) => {
+  const btn = document.getElementById('user-menu-btn');
+  const dd  = document.getElementById('user-menu-dropdown');
+  if (dd && btn && !btn.contains(e.target) && !dd.contains(e.target)) {
+    dd.classList.add('hidden');
+  }
 });
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/* ============================================================
+   FIRST-RUN TOUR
+   Full-screen modal tour shown once after onboarding.
+   5 value-moment cards — the 60-second PrepTare pitch.
+   ============================================================ */
+
+const TOUR_STEPS = [
+  {
+    icon:     '🎯',
+    stage:    '1 · Plan',
+    headline: 'Your family\'s nutrition, dialed in.',
+    body:     'Set each person\'s daily targets once. PrepTare scales every recipe, portion, and grocery quantity automatically — whether someone\'s cutting, bulking, or just maintaining.',
+  },
+  {
+    icon:     '🍳',
+    stage:    '2 · Recipes',
+    headline: 'Pick what\'s cooking this week.',
+    body:     'Choose from curated high-protein recipes or build your own. Every ingredient has its macros mapped — your numbers stay accurate without any extra math.',
+  },
+  {
+    icon:     '📅',
+    stage:    '3 · Calendar',
+    headline: 'Assign meals to your week.',
+    body:     'Drop recipes onto the calendar for each family member. Everyone eats what fits their goals — no separate meal plans, no confusion about who eats what.',
+  },
+  {
+    icon:     '⚖️',
+    stage:    '4 · Portions',
+    headline: 'Cutting? Bulking? Change it any time.',
+    body:     'Dial each person\'s phase independently and every quantity — recipes, groceries, portions — adjusts in real time. No recalculating, no spreadsheets.',
+  },
+  {
+    icon:     '🛒',
+    stage:    '5 · Grocery',
+    headline: 'Your shopping list writes itself.',
+    body:     'Exact quantities for every ingredient, organized by store section, priced from live market data. Check items off as you shop — prep starts on your schedule.',
+  },
+];
+
+let _tourStep = 0;
+
+function startFirstRunTour() {
+  if (localStorage.getItem('preptareTourComplete') === 'true') return;
+  _tourStep = 0;
+  _renderTourStep();
+}
+
+function _renderTourStep() {
+  const existing = document.getElementById('tour-overlay');
+  if (existing) existing.remove();
+
+  const step  = TOUR_STEPS[_tourStep];
+  const total = TOUR_STEPS.length;
+  const isLast = _tourStep === total - 1;
+
+  const overlay = document.createElement('div');
+  overlay.id        = 'tour-overlay';
+  overlay.className = 'tour-overlay';
+  overlay.innerHTML = `
+    <div class="tour-modal">
+      <div class="tour-modal-inner">
+
+        <div class="tour-icon">${step.icon}</div>
+        <div class="tour-stage-badge">${escapeHtml(step.stage)}</div>
+        <h2 class="tour-headline">${escapeHtml(step.headline)}</h2>
+        <p class="tour-body">${escapeHtml(step.body)}</p>
+
+        <div class="tour-dots">
+          ${TOUR_STEPS.map((_, i) =>
+            `<span class="tour-dot${i === _tourStep ? ' active' : ''}"></span>`
+          ).join('')}
+        </div>
+
+        <div class="tour-actions">
+          <button class="tour-skip-btn" onclick="endTour()">
+            ${isLast ? '' : 'Skip'}
+          </button>
+          <button class="tour-next-btn" onclick="advanceTour()">
+            ${isLast ? '🎉 Let\'s get prepping!' : 'Next →'}
+          </button>
+        </div>
+
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+}
+
+function advanceTour() {
+  if (_tourStep < TOUR_STEPS.length - 1) {
+    _tourStep++;
+    _renderTourStep();
+  } else {
+    // Modal tour done — chain into interactive steps
+    _closeModalTour();
+    setTimeout(startInteractiveTour, 300);
+  }
+}
+
+function endTour() {
+  // Skip path — close modal and mark complete without running interactive steps
+  _closeModalTour();
+  _saveTourComplete();
+}
+
+function _closeModalTour() {
+  const overlay = document.getElementById('tour-overlay');
+  if (overlay) {
+    overlay.classList.add('tour-overlay--exit');
+    setTimeout(() => overlay.remove(), 250);
+  }
+}
+
+function _saveTourComplete() {
+  localStorage.setItem('preptareTourComplete', 'true');
+  if (typeof currentUser !== 'undefined' && currentUser && typeof saveUserProfile === 'function') {
+    saveUserProfile(currentUser.uid, { firstRunTourComplete: true }).catch(() => {});
+  }
+}
+
+/* ── Interactive tour (4 spotlight steps) ───────────────── */
+
+const INTERACTIVE_STEPS = [
+  {
+    getTarget: () => document.querySelector('#recipe-grid .recipe-card') || document.getElementById('recipe-grid'),
+    stage: 0,
+    title: 'Pick a recipe',
+    body:  "Tap any recipe card to select it for the week — it'll arm it so you can drop it onto the calendar below.",
+  },
+  {
+    getTarget: () => document.getElementById('meal-calendar'),
+    stage: 0,
+    title: 'Add it to the calendar',
+    body:  "Tap a day column to schedule that recipe. Each day supports multiple meals so you can mix and match.",
+  },
+  {
+    getTarget: () => document.querySelector('.chip-avatars') || document.getElementById('meal-calendar'),
+    stage: 0,
+    title: "Choose who's eating",
+    body:  "See those avatar icons on each meal? Tap them to include or exclude a family member. Only the bright, solid icons count toward their portions and grocery quantities — this step is easy to miss!",
+  },
+  {
+    getTarget: () => document.getElementById('portion-card'),
+    stage: 1,
+    title: 'Adjust portions any time',
+    body:  "Drag the slider to dial each person's intake — cut 20%, bulk up, or maintain. Grocery quantities update automatically.",
+  },
+  {
+    getTarget: () => document.getElementById('grocery-list-container'),
+    stage: 2,
+    title: 'Your shopping list writes itself',
+    body:  "Every ingredient calculated to the exact amount your family needs, sorted by store section. Check items off as you shop.",
+  },
+];
+
+let _iTourStep = 0;
+
+function startInteractiveTour() {
+  _iTourStep = 0;
+  _renderITourTip();
+}
+
+function _renderITourTip() {
+  _clearITourHighlight();
+  document.getElementById('tour-tip')?.remove();
+
+  if (_iTourStep >= INTERACTIVE_STEPS.length) {
+    _endInteractiveTour();
+    return;
+  }
+
+  const step = INTERACTIVE_STEPS[_iTourStep];
+
+  if (state.currentStage !== step.stage) {
+    switchStage(step.stage);
+  }
+
+  const isLast = _iTourStep === INTERACTIVE_STEPS.length - 1;
+
+  setTimeout(() => {
+    const target = step.getTarget();
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target.classList.add('tour-highlight');
+    }
+
+    const tip = document.createElement('div');
+    tip.id = 'tour-tip';
+    tip.innerHTML = `
+      <div class="tour-tip-header">
+        <span class="tour-tip-counter">${_iTourStep + 1} of ${INTERACTIVE_STEPS.length}</span>
+        <button class="tour-tip-end" onclick="_endInteractiveTour()">End tour ×</button>
+      </div>
+      <div class="tour-tip-title">${step.title}</div>
+      <div class="tour-tip-body">${step.body}</div>
+      <button class="tour-tip-next" onclick="_advanceITour()">
+        ${isLast ? "Got it! 🎉" : "Next →"}
+      </button>`;
+    document.body.appendChild(tip);
+  }, 350);
+}
+
+function _advanceITour() {
+  _iTourStep++;
+  _renderITourTip();
+}
+
+function _clearITourHighlight() {
+  document.querySelectorAll('.tour-highlight').forEach(el => el.classList.remove('tour-highlight'));
+}
+
+function _endInteractiveTour() {
+  _clearITourHighlight();
+  document.getElementById('tour-tip')?.remove();
+  _saveTourComplete();
+}
 
 
 /* ============================================================

@@ -4587,6 +4587,21 @@ html.dark .fs-row--freeze .fs-row-zone { color: #7a9ff5; }
   transition: border-color var(--transition);
 }
 
+.onb-input::placeholder {
+  color: var(--color-text-faint);
+  opacity: 1;
+}
+
+select.onb-input {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23a0a09a' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 30px;
+  cursor: pointer;
+}
+
 .onb-input:focus {
   outline: none; border-color: var(--color-brand);
   background: var(--color-surface);

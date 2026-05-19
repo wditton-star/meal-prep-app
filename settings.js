@@ -437,14 +437,16 @@ function _settCalcHTML(member) {
     ` : `
       <div class="onb-height-ftIn">
         <div class="onb-input-unit">
-          <input type="number" class="onb-input" id="sett-calc-height-ft"
-            placeholder="5" min="3" max="8" oninput="settRunCalc()" />
-          <span class="onb-unit">ft</span>
+          <select class="onb-input" id="sett-calc-height-ft" onchange="settRunCalc()">
+            <option value="">ft</option>
+            ${[3,4,5,6,7,8].map(f => `<option value="${f}">${f} ft</option>`).join('')}
+          </select>
         </div>
         <div class="onb-input-unit">
-          <input type="number" class="onb-input" id="sett-calc-height-in"
-            placeholder="10" min="0" max="11" oninput="settRunCalc()" />
-          <span class="onb-unit">in</span>
+          <select class="onb-input" id="sett-calc-height-in" onchange="settRunCalc()">
+            <option value="">in</option>
+            ${[0,1,2,3,4,5,6,7,8,9,10,11].map(i => `<option value="${i}">${i} in</option>`).join('')}
+          </select>
         </div>
       </div>
     `}

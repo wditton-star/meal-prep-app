@@ -503,14 +503,16 @@ function _onbCalcHTML(member) {
         ` : `
           <div class="onb-height-ftIn">
             <div class="onb-input-unit">
-              <input type="number" class="onb-input" id="onb-calc-height-ft"
-                placeholder="5" min="3" max="8" oninput="onbRunCalc()" />
-              <span class="onb-unit">ft</span>
+              <select class="onb-input" id="onb-calc-height-ft" onchange="onbRunCalc()">
+                <option value="">ft</option>
+                ${[3,4,5,6,7,8].map(f => `<option value="${f}">${f} ft</option>`).join('')}
+              </select>
             </div>
             <div class="onb-input-unit">
-              <input type="number" class="onb-input" id="onb-calc-height-in"
-                placeholder="10" min="0" max="11" oninput="onbRunCalc()" />
-              <span class="onb-unit">in</span>
+              <select class="onb-input" id="onb-calc-height-in" onchange="onbRunCalc()">
+                <option value="">in</option>
+                ${[0,1,2,3,4,5,6,7,8,9,10,11].map(i => `<option value="${i}">${i} in</option>`).join('')}
+              </select>
             </div>
           </div>
         `}

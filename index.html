@@ -706,11 +706,24 @@
 
   </div><!-- /#app-wrapper -->
 
+  <!-- Barcode scanner overlay -->
+  <div id="rb-scanner-overlay" onclick="if(event.target===this)closeBarcodeScanner()">
+    <div class="rb-scanner-modal">
+      <div class="rb-scanner-header">
+        <span class="rb-scanner-title">Scan barcode</span>
+        <button class="rb-scanner-close" onclick="closeBarcodeScanner()">&#10005;</button>
+      </div>
+      <div id="rb-scanner-region"></div>
+      <p class="rb-scanner-hint">Point camera at product barcode</p>
+    </div>
+  </div>
+
   <!-- Firebase SDKs (loaded via CDN — no build step required) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <script src="app.js"></script>
   <script src="auth.js"></script>
   <script src="onboarding.js"></script>

@@ -4115,11 +4115,11 @@ html.dark .fs-row--freeze .fs-row-zone { color: #7a9ff5; }
   display: flex; flex-direction: column; gap: 8px; margin-bottom: 6px;
 }
 .rb-ing-main { display: flex; gap: 6px; align-items: center; }
-.rb-ing-amount { width: 64px; flex-shrink: 0; }
-.rb-ing-unit   { width: 60px; flex-shrink: 0; }
-.rb-ing-name   { flex: 1; min-width: 0; }
+.rb-ing-amount { width: 56px; flex-shrink: 0; }
+.rb-ing-unit   { width: 62px; flex-shrink: 0; padding-right: 4px; cursor: pointer; }
+.rb-ing-name   { flex: 1; min-width: 60px; }
 .rb-usda-btn {
-  font-size: 11px; font-weight: 600; padding: 7px 10px; white-space: nowrap;
+  font-size: 11px; font-weight: 600; padding: 7px 8px; white-space: nowrap;
   background: var(--color-brand-light); color: var(--color-brand-dark);
   border: none; border-radius: var(--radius-sm); cursor: pointer; flex-shrink: 0;
   transition: opacity var(--transition);
@@ -4137,9 +4137,28 @@ html.dark .fs-row--freeze .fs-row-zone { color: #7a9ff5; }
   transition: border-color var(--transition);
 }
 .rb-usda-result:hover { border-color: var(--color-brand); }
+.rb-usda-result--cooked { border-color: rgba(var(--color-brand-rgb, 99,179,101), 0.25); }
 .rb-usda-desc   { font-size: 13px; color: var(--color-text); font-weight: 500; }
 .rb-usda-macros { font-size: 11px; color: var(--color-text-muted); }
 .rb-usda-unit   { color: var(--color-text-faint); }
+.rb-usda-more {
+  width: 100%; padding: 8px; background: transparent;
+  border: 0.5px dashed var(--color-border-strong); border-radius: var(--radius-sm);
+  color: var(--color-brand); font-size: 12px; cursor: pointer; margin-top: 2px;
+}
+.rb-cooked-toggle {
+  margin-left: auto; font-size: 11px; font-weight: 600;
+  padding: 3px 10px; border-radius: var(--radius-pill); cursor: pointer;
+  background: var(--color-surface-muted);
+  border: 0.5px solid var(--color-border-strong);
+  color: var(--color-text-faint); text-transform: none; letter-spacing: 0;
+  transition: all 0.15s;
+}
+.rb-cooked-toggle--on {
+  background: var(--color-brand-light);
+  border-color: var(--color-brand);
+  color: var(--color-brand-dark);
+}
 
 .rb-alts { display: flex; flex-direction: column; gap: 5px; padding-top: 8px; border-top: 0.5px solid var(--color-border); }
 .rb-alt-row { display: flex; gap: 5px; align-items: center; }
@@ -4181,6 +4200,111 @@ html.dark .fs-row--freeze .fs-row-zone { color: #7a9ff5; }
   padding: 8px 14px; background: transparent; color: #e05555;
   font-size: 13px; border: 0.5px solid rgba(220,50,50,0.3);
   border-radius: var(--radius-pill); cursor: pointer;
+}
+
+/* ── Builder mode toggle ── */
+.rb-mode-toggle {
+  display: flex; background: var(--color-surface-muted);
+  border: 0.5px solid var(--color-border-strong);
+  border-radius: 8px; padding: 3px; width: fit-content; margin-bottom: 4px;
+}
+.rb-mode-btn {
+  background: transparent; border: none; border-radius: 6px;
+  padding: 6px 20px; font-size: 13px; font-weight: 500;
+  color: var(--color-text-muted); cursor: pointer; transition: all 0.15s;
+}
+.rb-mode-btn--active { background: var(--color-brand); color: #fff; cursor: default; }
+.rb-mode-btn:not(.rb-mode-btn--active):hover { color: var(--color-text); }
+
+/* ── Scan button ── */
+.rb-scan-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; flex-shrink: 0;
+  background: var(--color-surface-muted);
+  border: 0.5px solid var(--color-border-strong);
+  border-radius: var(--radius-sm); cursor: pointer;
+  color: var(--color-text-muted); transition: border-color 0.15s, color 0.15s;
+}
+.rb-scan-btn:hover { border-color: var(--color-brand); color: var(--color-brand); }
+
+/* ── Per-ingredient macro display ── */
+.rb-ing-macros {
+  display: flex; flex-wrap: wrap; gap: 3px 12px;
+  padding: 4px 2px 0; font-size: 11px;
+}
+.rb-ing-macros-per { color: var(--color-text-faint); }
+.rb-ing-macros-contrib { color: var(--color-brand); font-weight: 600; }
+.rb-ing-macros-noqty { color: var(--color-text-faint); font-style: italic; }
+
+/* ── Smart mode totals section ── */
+.rb-totals-section {
+  background: var(--color-surface-muted);
+  border: 0.5px solid var(--color-border-strong);
+  border-radius: var(--radius-md); padding: 14px 16px;
+  margin-top: 12px; display: flex; flex-direction: column; gap: 12px;
+}
+.rb-totals-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.rb-totals-row--serving {
+  padding-bottom: 10px; border-bottom: 0.5px solid var(--color-border-strong);
+}
+.rb-totals-lbl {
+  font-size: 11px; font-weight: 700; color: var(--color-text-muted);
+  text-transform: uppercase; letter-spacing: 0.05em; flex-shrink: 0;
+}
+.rb-totals-lbl em {
+  font-style: normal; font-weight: 400;
+  color: var(--color-text-faint); margin-left: 4px; text-transform: none; letter-spacing: 0;
+}
+.rb-totals-macros {
+  display: flex; gap: 10px; font-size: 12px; color: var(--color-text-muted);
+}
+.rb-totals-macros--hi { font-size: 15px; font-weight: 700; color: var(--color-text); }
+.rb-yield-row {
+  display: flex; flex-direction: column; gap: 6px;
+  padding-top: 10px; border-top: 0.5px solid var(--color-border-strong);
+}
+.rb-yield-label {
+  font-size: 11px; font-weight: 700; color: var(--color-text-muted);
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.rb-yield-optional { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--color-text-faint); }
+.rb-yield-controls { display: flex; align-items: center; gap: 8px; }
+.rb-yield-input { width: 100px !important; }
+.rb-yield-unit { font-size: 13px; color: var(--color-text-faint); }
+.rb-yield-result { font-size: 13px; color: var(--color-brand); font-weight: 600; }
+.rb-totals-empty {
+  font-size: 12px; color: var(--color-text-faint);
+  text-align: center; margin: 0; font-style: italic;
+}
+
+/* ── Barcode scanner overlay ── */
+#rb-scanner-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.75); z-index: 1100;
+  align-items: center; justify-content: center;
+}
+#rb-scanner-overlay.open { display: flex; }
+.rb-scanner-modal {
+  background: var(--color-surface); border-radius: 16px;
+  overflow: hidden; width: min(90vw, 400px);
+  display: flex; flex-direction: column;
+}
+.rb-scanner-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; border-bottom: 0.5px solid var(--color-border);
+}
+.rb-scanner-title { font-size: 16px; font-weight: 600; }
+.rb-scanner-close {
+  background: none; border: none; cursor: pointer;
+  font-size: 16px; color: var(--color-text-muted); padding: 4px 8px;
+}
+#rb-scanner-region { width: 100%; background: #000; min-height: 240px; }
+#rb-scanner-region video { width: 100%; display: block; }
+.rb-scanner-hint {
+  font-size: 13px; color: var(--color-text-muted);
+  text-align: center; padding: 12px 16px; margin: 0;
 }
 
 /* ── Swap Picker ────────────────────────────────────────────── */

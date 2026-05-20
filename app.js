@@ -2973,9 +2973,11 @@ function updatePortionScaleDisplay(memberId, recipeId, rawValue) {
     el.textContent = fmtIngredientAmount(ing.gramsPerServing * scale * portionScale, ing, state.portionUnit);
   });
 
-  // Compute scaled macros
+  // Compute scaled macros.
+  // Custom recipes have fixed per-serving amounts — always use recipe macros so
+  // the numbers stay consistent with what the recipe builder shows.
   let cal, protein, carbs, fat;
-  if (isMacro) {
+  if (isMacro && !recipe.custom) {
     cal     = Math.round((macros.cal     / mealsPerDay) * portionScale);
     protein = Math.round((macros.protein / mealsPerDay) * portionScale);
     carbs   = Math.round((macros.carbs   / mealsPerDay) * portionScale);
@@ -3203,7 +3205,7 @@ function renderPortionTable() {
 
     /* Macro strip */
     let cal, protein, carbs, fat;
-    if (isMacro) {
+    if (isMacro && !recipe.custom) {
       cal     = Math.round((macros.cal     / mealsPerDay) * portionScale);
       protein = Math.round((macros.protein / mealsPerDay) * portionScale);
       carbs   = Math.round((macros.carbs   / mealsPerDay) * portionScale);
@@ -3233,10 +3235,12 @@ function renderPortionTable() {
           <span class="pt-macro-chip-lbl">fat</span>
         </div>
       </div>
-      ${isMacro ? `<div class="pt-macro-sublabel" id="pt-macro-sub-${m.id}">Target per meal &nbsp;·&nbsp; ${macros.cal.toLocaleString()} cal/day ÷ ${mealsPerDay}</div>` : ''}`;
+      ${(isMacro && !recipe.custom) ? `<div class="pt-macro-sublabel" id="pt-macro-sub-${m.id}">Target per meal &nbsp;·&nbsp; ${macros.cal.toLocaleString()} cal/day ÷ ${mealsPerDay}</div>` : ''}`;
 
     /* Portion size slider — macro mode only */
-    const baseCal   = Math.round(macros.cal / mealsPerDay);
+    const baseCal = recipe.custom
+      ? Math.round((recipe.calories || 0) * calScale)
+      : Math.round(macros.cal / mealsPerDay);
     const sliderMin = 50;
     const sliderMax = 150;
     const sliderVal = Math.round(portionScale * 100);
@@ -3898,7 +3902,7 @@ function toggleIngPopover(event, recipeId) {
   const recipe = ETG_RECIPES.find(r => r.id === recipeId);
   if (!recipe || !recipe.ingredients) return;
 
-  const servingsLine = recipe.servings ? `<div class="eip-servings">Makes ${recipe.servings} servings</div>` : '';
+  const servingsLine = (recipe.servings && recipe.servings > 1) ? `<div class="eip-servings">Makes ${recipe.servings} servings</div>` : '';
   const rows = recipe.ingredients.map(ing => {
     const amt = ing.amount ? `${ing.amount}${ing.unit ? ' ' + ing.unit : ''}` : (ing.unit || '');
     return `<li class="eip-row"><span class="eip-amt">${amt}</span><span class="eip-name">${ing.name}</span></li>`;
@@ -4236,21 +4240,27 @@ function openRecipeBuilder(recipeId = null) {
   if (recipeId) {
     const r = state.customRecipes.find(r => r.id === recipeId);
     if (!r) return;
+    const hasIngMacros = (r.ingredients || []).some(i => (i.cal100g || 0) > 0);
     state.builder = {
       mode: 'edit', id: recipeId,
-      name: r.name, servings: r.servings,
+      advancedMode: hasIngMacros, cookedBatchG: r.cookedBatchG || '',
+      name: r.name, servings: 1,
       calories: r.calories, protein: r.protein, carbs: r.carbs, fat: r.fat,
-      ingredients: r.ingredients.map(i => ({
-        ...i, alternatives: (i.alternatives || []).map(a => ({ ...a }))
+      ingredients: (r.ingredients || []).map(i => ({
+        ...i,
+        cal100g: i.cal100g || 0, protein100g: i.protein100g || 0,
+        carbs100g: i.carbs100g || 0, fat100g: i.fat100g || 0,
+        alternatives: (i.alternatives || []).map(a => ({ ...a }))
       })),
-      usdaResults: {}, usdaLoading: {}
+      usdaResults: {}, usdaLoading: {}, usdaShowing: {}, usdaCookedSearch: true,
     };
   } else {
     state.builder = {
       mode: 'new', id: null,
-      name: '', servings: 4, calories: 0, protein: 0, carbs: 0, fat: 0,
-      ingredients: [{ name: '', amount: '', unit: '', alternatives: [] }],
-      usdaResults: {}, usdaLoading: {}
+      advancedMode: false, cookedBatchG: '',
+      name: '', servings: 1, calories: 0, protein: 0, carbs: 0, fat: 0,
+      ingredients: [{ name: '', amount: '', unit: 'oz', cal100g: 0, protein100g: 0, carbs100g: 0, fat100g: 0, alternatives: [] }],
+      usdaResults: {}, usdaLoading: {}, usdaShowing: {}, usdaCookedSearch: true,
     };
   }
   document.getElementById('recipe-builder-modal').classList.add('open');
@@ -4258,8 +4268,119 @@ function openRecipeBuilder(recipeId = null) {
 }
 
 function closeRecipeBuilder() {
+  closeBarcodeScanner();
   state.builder = null;
   document.getElementById('recipe-builder-modal').classList.remove('open');
+}
+
+function toggleBuilderMode() {
+  const b = state.builder;
+  if (!b) return;
+  if (!b.advancedMode) {
+    b.advancedMode = true;
+  } else {
+    const totals = builderTotals();
+    if (totals.hasData) {
+      b.calories = Math.round(totals.cal);
+      b.protein  = +totals.protein.toFixed(1);
+      b.carbs    = +totals.carbs.toFixed(1);
+      b.fat      = +totals.fat.toFixed(1);
+    }
+    b.advancedMode = false;
+  }
+  renderRecipeBuilder();
+}
+
+/* ── Advanced macro helpers ── */
+
+const ING_UNIT_G = {
+  g: 1, grams: 1, gram: 1,
+  oz: 28.35, ounce: 28.35, ounces: 28.35,
+  lb: 453.59, lbs: 453.59, pound: 453.59, pounds: 453.59,
+  kg: 1000,
+  cup: 236, cups: 236,
+  tbsp: 14.79, tsp: 4.93,
+  ml: 1, l: 1000,
+};
+
+function ingGrams(ing) {
+  const factor = ING_UNIT_G[(ing.unit || '').toLowerCase().trim()];
+  if (factor === undefined || !+ing.amount) return 0;
+  return factor * (+ing.amount);
+}
+
+function ingContrib(ing) {
+  const hasMacros = (ing.cal100g || 0) > 0 || (ing.protein100g || 0) > 0;
+  if (!hasMacros) return null;
+  const g = ingGrams(ing);
+  if (!g) return null;
+  const f = g / 100;
+  return {
+    cal:     Math.round((ing.cal100g || 0) * f),
+    protein: +((ing.protein100g || 0) * f).toFixed(1),
+    carbs:   +((ing.carbs100g || 0) * f).toFixed(1),
+    fat:     +((ing.fat100g || 0) * f).toFixed(1),
+  };
+}
+
+function builderTotals() {
+  const t = (state.builder?.ingredients || []).reduce((acc, ing) => {
+    const c = ingContrib(ing);
+    if (c) {
+      acc.cal += c.cal; acc.protein += c.protein;
+      acc.carbs += c.carbs; acc.fat += c.fat;
+      acc.hasData = true;
+    }
+    return acc;
+  }, { cal: 0, protein: 0, carbs: 0, fat: 0, hasData: false });
+  return {
+    ...t,
+    cal:     Math.round(t.cal),
+    protein: Math.round(t.protein * 10) / 10,
+    carbs:   Math.round(t.carbs   * 10) / 10,
+    fat:     Math.round(t.fat     * 10) / 10,
+  };
+}
+
+function renderAdvancedTotals() {
+  const b = state.builder;
+  const per = builderTotals();  // ingredient amounts = per serving
+  const cookedG = +b.cookedBatchG || 0;
+  return `
+    <div class="rb-totals-section">
+      <div class="rb-totals-row rb-totals-row--serving">
+        <span class="rb-totals-lbl">Per serving</span>
+        <div class="rb-totals-macros rb-totals-macros--hi">
+          <span>${per.cal} cal</span>
+          <span>${per.protein}g P</span>
+          <span>${per.carbs}g C</span>
+          <span>${per.fat}g F</span>
+        </div>
+      </div>
+      <div class="rb-yield-row">
+        <label class="rb-yield-label">Cooked weight per serving <span class="rb-yield-optional">(optional — for food scale)</span></label>
+        <div class="rb-yield-controls">
+          <input class="rb-input rb-yield-input" type="number" min="1" placeholder="grams"
+            value="${b.cookedBatchG || ''}"
+            oninput="state.builder.cookedBatchG=this.value;updateAdvancedTotals()">
+          <span class="rb-yield-unit">g</span>
+          ${cookedG > 0 ? `<span class="rb-yield-result">${cookedG}g cooked = 1 serving</span>` : ''}
+        </div>
+      </div>
+      ${!per.hasData ? `<p class="rb-totals-empty">Enter ingredient amounts per serving, then search USDA or scan to get macros</p>` : ''}
+    </div>`;
+}
+
+function updateAdvancedTotals() {
+  const el = document.getElementById('rb-totals-wrapper');
+  if (el && state.builder?.advancedMode) el.innerHTML = renderAdvancedTotals();
+}
+
+function refreshBuilderIngredients() {
+  const el = document.getElementById('rb-ingredients');
+  if (!el || !state.builder) return;
+  el.innerHTML = state.builder.ingredients.map((ing, idx) => renderBuilderIngredient(ing, idx)).join('');
+  updateAdvancedTotals();
 }
 
 function renderRecipeBuilder() {
@@ -4277,29 +4398,35 @@ function renderRecipeBuilder() {
           placeholder="e.g. BBQ Chicken Rice Bowl"
           oninput="state.builder.name=this.value">
       </div>
-      <div class="rb-field">
-        <label class="rb-label">Servings</label>
-        <input class="rb-input rb-input--sm" type="number" min="1" max="20" value="${b.servings}"
-          oninput="state.builder.servings=+this.value||4">
-      </div>
     </div>
-    <div class="rb-section-label">Macros per serving</div>
-    <div class="rb-macro-row">
-      ${[['calories','cal'],['protein','protein'],['carbs','carbs'],['fat','fat']].map(([f,l]) => `
-        <div class="rb-macro-chip">
-          <input class="rb-input rb-macro-input" type="number" min="0" value="${b[f]}"
-            oninput="state.builder.${f}=+this.value||0">
-          <span class="rb-macro-lbl">${l}</span>
-        </div>`).join('')}
+    <div class="rb-mode-toggle">
+      <button class="rb-mode-btn${!b.advancedMode ? ' rb-mode-btn--active' : ''}" onclick="toggleBuilderMode()" ${!b.advancedMode ? 'disabled' : ''}>Basic</button>
+      <button class="rb-mode-btn${b.advancedMode ? ' rb-mode-btn--active' : ''}" onclick="toggleBuilderMode()" ${b.advancedMode ? 'disabled' : ''}>Smart</button>
     </div>
+    ${!b.advancedMode ? `
+      <div class="rb-section-label">Macros per serving</div>
+      <div class="rb-macro-row">
+        ${[['calories','cal'],['protein','protein'],['carbs','carbs'],['fat','fat']].map(([f,l]) => `
+          <div class="rb-macro-chip">
+            <input class="rb-input rb-macro-input" type="number" min="0" value="${b[f]}"
+              oninput="state.builder.${f}=+this.value||0">
+            <span class="rb-macro-lbl">${l}</span>
+          </div>`).join('')}
+      </div>` : ''}
     <div class="rb-section-label">
       Ingredients
-      <span class="rb-section-hint">Add swap options under each ingredient for weekly swapping</span>
+      <span class="rb-section-hint">${b.advancedMode ? 'Enter amounts per serving — search USDA or scan barcodes' : 'Add swap options under each ingredient for weekly swapping'}</span>
+      ${b.advancedMode ? `
+        <button class="rb-cooked-toggle${b.usdaCookedSearch ? ' rb-cooked-toggle--on' : ''}"
+          onclick="state.builder.usdaCookedSearch=!state.builder.usdaCookedSearch;renderRecipeBuilder()">
+          ${b.usdaCookedSearch ? 'Cooked search on' : 'All results'}
+        </button>` : ''}
     </div>
     <div id="rb-ingredients">
       ${b.ingredients.map((ing, idx) => renderBuilderIngredient(ing, idx)).join('')}
     </div>
     <button class="rb-add-btn" onclick="addBuilderIngredient()">+ Add ingredient</button>
+    ${b.advancedMode ? `<div id="rb-totals-wrapper">${renderAdvancedTotals()}</div>` : ''}
     <div class="rb-actions">
       ${b.mode === 'edit'
         ? `<button class="rb-delete-btn" onclick="confirmDeleteCustomRecipe('${b.id}')">Delete recipe</button>`
@@ -4313,35 +4440,62 @@ function renderRecipeBuilder() {
 
 function renderBuilderIngredient(ing, idx) {
   const b = state.builder;
-  const results = b.usdaResults[idx] || [];
+  const results  = b.usdaResults[idx] || [];
   const loading  = b.usdaLoading[idx];
+  const hasMacros = (ing.cal100g || 0) > 0 || (ing.protein100g || 0) > 0;
+  const contrib  = (b.advancedMode && hasMacros) ? ingContrib(ing) : null;
   return `
     <div class="rb-ing-row" id="rb-ing-${idx}">
       <div class="rb-ing-main">
         <input class="rb-input rb-ing-amount" type="number" min="0" step="0.25"
           value="${ing.amount}" placeholder="Qty"
-          oninput="state.builder.ingredients[${idx}].amount=+this.value">
-        <input class="rb-input rb-ing-unit" type="text"
-          value="${escHtml(ing.unit)}" placeholder="unit"
-          oninput="state.builder.ingredients[${idx}].unit=this.value">
+          oninput="state.builder.ingredients[${idx}].amount=+this.value;${b.advancedMode ? 'updateAdvancedTotals()' : ''}">
+        <select class="rb-input rb-ing-unit"
+          onchange="state.builder.ingredients[${idx}].unit=this.value;${b.advancedMode ? 'updateAdvancedTotals()' : ''}">
+          ${['oz','g','lb','kg','cup','tbsp','tsp','ml'].map(u =>
+            `<option value="${u}"${(ing.unit||'oz')===u?' selected':''}>${u}</option>`
+          ).join('')}
+        </select>
         <input class="rb-input rb-ing-name" type="text"
           value="${escHtml(ing.name)}" placeholder="Ingredient name"
-          oninput="state.builder.ingredients[${idx}].name=this.value">
+          oninput="state.builder.ingredients[${idx}].name=this.value"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();searchUSDA(${idx})}">
+        ${b.advancedMode ? `
+          <button class="rb-scan-btn" onclick="openBarcodeScanner(${idx})" title="Scan barcode">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+              <path d="M3 9V5a2 2 0 0 1 2-2h4M15 3h4a2 2 0 0 1 2 2v4M21 15v4a2 2 0 0 1-2 2h-4M9 21H5a2 2 0 0 1-2-2v-4"/>
+              <line x1="9" y1="9" x2="9" y2="15"/><line x1="12" y1="9" x2="12" y2="15"/><line x1="15" y1="9" x2="15" y2="15"/>
+            </svg>
+          </button>` : ''}
         <button class="rb-usda-btn${loading ? ' rb-usda-btn--loading' : ''}"
-          onclick="searchUSDA(${idx})" title="USDA nutrition lookup">
-          ${loading ? '…' : 'USDA'}
+          onclick="searchUSDA(${idx})" title="Search nutrition database">
+          ${loading ? '…' : 'Search'}
         </button>
         <button class="rb-ing-del" onclick="removeBuilderIngredient(${idx})" title="Remove">✕</button>
       </div>
-      ${results.length ? `
+      ${b.advancedMode && hasMacros ? `
+        <div class="rb-ing-macros">
+          <span class="rb-ing-macros-per">per 100g: ${ing.cal100g} cal · ${ing.protein100g}g P · ${ing.carbs100g}g C · ${ing.fat100g}g F</span>
+          ${contrib
+            ? `<span class="rb-ing-macros-contrib">→ ${contrib.cal} cal · ${contrib.protein}g P · ${contrib.carbs}g C · ${contrib.fat}g F total</span>`
+            : `<span class="rb-ing-macros-noqty">Enter qty &amp; unit to calculate contribution</span>`}
+        </div>` : ''}
+      ${results.length ? (() => {
+        const showing = b.usdaShowing[idx] || 8;
+        const visible = results.slice(0, showing);
+        const remaining = results.length - showing;
+        return `
         <div class="rb-usda-results">
-          ${results.map(r => `
-            <button class="rb-usda-result"
+          ${visible.map(r => `
+            <button class="rb-usda-result${/cooked/i.test(r.description) ? ' rb-usda-result--cooked' : ''}"
               onclick="applyUSDAResult(${idx},'${r.description.replace(/'/g,"\\'")}',${r.cal},${r.protein},${r.carbs},${r.fat})">
               <span class="rb-usda-desc">${escHtml(r.description)}</span>
               <span class="rb-usda-macros">${r.cal} cal · ${r.protein}g P · ${r.carbs}g C · ${r.fat}g F <span class="rb-usda-unit">/ 100g</span></span>
             </button>`).join('')}
-        </div>` : ''}
+          ${remaining > 0 ? `<button class="rb-usda-more" onclick="showMoreUSDA(${idx})">Show ${Math.min(remaining, 8)} more results</button>` : ''}
+        </div>`;
+      })() : ''}
+      ${b.mode === 'edit' ? `
       <div class="rb-alts">
         ${(ing.alternatives || []).map((alt, ai) => `
           <div class="rb-alt-row">
@@ -4358,57 +4512,67 @@ function renderBuilderIngredient(ing, idx) {
             <button class="rb-alt-del" onclick="removeBuilderAlt(${idx},${ai})">✕</button>
           </div>`).join('')}
         <button class="rb-add-alt-btn" onclick="addBuilderAlt(${idx})">+ Add swap option</button>
-      </div>
+      </div>` : ''}
     </div>`;
 }
 
 function addBuilderIngredient() {
-  state.builder.ingredients.push({ name: '', amount: '', unit: '', alternatives: [] });
-  document.getElementById('rb-ingredients').innerHTML =
-    state.builder.ingredients.map((ing, idx) => renderBuilderIngredient(ing, idx)).join('');
+  state.builder.ingredients.push({ name: '', amount: '', unit: 'oz', cal100g: 0, protein100g: 0, carbs100g: 0, fat100g: 0, alternatives: [] });
+  refreshBuilderIngredients();
 }
 
 function removeBuilderIngredient(idx) {
   state.builder.ingredients.splice(idx, 1);
-  document.getElementById('rb-ingredients').innerHTML =
-    state.builder.ingredients.map((ing, i) => renderBuilderIngredient(ing, i)).join('');
+  if (!state.builder.ingredients.length) {
+    state.builder.ingredients.push({ name: '', amount: '', unit: 'oz', cal100g: 0, protein100g: 0, carbs100g: 0, fat100g: 0, alternatives: [] });
+  }
+  refreshBuilderIngredients();
 }
 
 function addBuilderAlt(ingIdx) {
   state.builder.ingredients[ingIdx].alternatives.push({ name: '', amount: '', unit: '' });
-  document.getElementById('rb-ingredients').innerHTML =
-    state.builder.ingredients.map((ing, idx) => renderBuilderIngredient(ing, idx)).join('');
+  refreshBuilderIngredients();
 }
 
 function removeBuilderAlt(ingIdx, altIdx) {
   state.builder.ingredients[ingIdx].alternatives.splice(altIdx, 1);
-  document.getElementById('rb-ingredients').innerHTML =
-    state.builder.ingredients.map((ing, idx) => renderBuilderIngredient(ing, idx)).join('');
+  refreshBuilderIngredients();
 }
 
 function saveBuilderRecipe() {
   const b = state.builder;
   if (!b.name.trim()) { alert('Please enter a recipe name.'); return; }
+  let calories = b.calories || 0, protein = b.protein || 0, carbs = b.carbs || 0, fat = b.fat || 0;
+  if (b.advancedMode) {
+    const totals = builderTotals();  // ingredient amounts are per serving
+    calories = Math.round(totals.cal);
+    protein  = +totals.protein.toFixed(1);
+    carbs    = +totals.carbs.toFixed(1);
+    fat      = +totals.fat.toFixed(1);
+  }
+  const filteredIngs = b.ingredients.filter(i => i.name.trim());
   const recipe = {
     id: b.id || ('custom-' + Date.now()),
     name: b.name.trim(),
     custom: true,
-    servings: b.servings || 4,
-    calories: b.calories || 0,
-    protein:  b.protein  || 0,
-    carbs:    b.carbs    || 0,
-    fat:      b.fat      || 0,
-    ingredients: b.ingredients
-      .filter(i => i.name.trim())
-      .map(i => ({
-        name: i.name.trim(),
-        amount: +i.amount || 0,
-        unit: i.unit.trim(),
-        alternatives: (i.alternatives || [])
-          .filter(a => a.name.trim())
-          .map(a => ({ name: a.name.trim(), amount: +a.amount || 0, unit: a.unit.trim() }))
-      })),
-    portionIngredients: autoPortionIngredients(b.ingredients.filter(i => i.name.trim())),
+    servings: 1,
+    calories, protein, carbs, fat,
+    ingredients: filteredIngs.map(i => ({
+      name: i.name.trim(),
+      amount: +i.amount || 0,
+      unit: i.unit.trim(),
+      ...(b.advancedMode && ((i.cal100g || 0) > 0 || (i.protein100g || 0) > 0) ? {
+        cal100g: i.cal100g || 0, protein100g: i.protein100g || 0,
+        carbs100g: i.carbs100g || 0, fat100g: i.fat100g || 0,
+      } : {}),
+      alternatives: (i.alternatives || [])
+        .filter(a => a.name.trim())
+        .map(a => ({ name: a.name.trim(), amount: +a.amount || 0, unit: a.unit.trim() }))
+    })),
+    portionIngredients: autoPortionIngredients(filteredIngs),
+    ...(b.advancedMode && +b.cookedBatchG > 0 ? {
+      cookedGPerServing: Math.round(+b.cookedBatchG),
+    } : {}),
   };
   if (b.mode === 'edit') {
     const idx = state.customRecipes.findIndex(r => r.id === b.id);
@@ -4425,8 +4589,16 @@ function autoPortionIngredients(ings) {
   const result = [];
   const prot = ings.find(i => getIngredientMacroType(i.name) === 'protein');
   const carb  = ings.find(i => getIngredientMacroType(i.name) === 'carbs');
-  if (prot) result.push({ name: prot.name, gramsPerServing: 170, displayUnit: 'oz', macroType: 'protein' });
-  if (carb)  result.push({ name: carb.name,  gramsPerServing: 150, displayUnit: 'oz', macroType: 'carbs'   });
+  // Use actual entered grams; scale by phase factor only (macroType 'calories')
+  // so macro-targeting never overrides amounts the user explicitly specified
+  if (prot) {
+    const g = ingGrams(prot) || 170;
+    result.push({ name: prot.name, gramsPerServing: g, displayUnit: 'oz', macroType: 'calories' });
+  }
+  if (carb) {
+    const g = ingGrams(carb) || 150;
+    result.push({ name: carb.name, gramsPerServing: g, displayUnit: 'oz', macroType: 'calories' });
+  }
   return result;
 }
 
@@ -4442,53 +4614,150 @@ function deleteCustomRecipe(recipeId) {
   renderRecipes();
 }
 
+const _usdaAbort = {};
+
 async function searchUSDA(ingIdx) {
-  const ing = state.builder?.ingredients[ingIdx];
-  if (!ing?.name?.trim()) return;
+  if (!state.builder) return;
+  const ing = state.builder.ingredients[ingIdx];
+  if (!ing) return;
+
+  // Sync state from DOM in case oninput hasn't fired yet (mobile tap lag)
+  const nameEl = document.querySelector(`#rb-ing-${ingIdx} .rb-ing-name`);
+  const name = ing.name?.trim() || nameEl?.value?.trim() || '';
+  if (!name) return;
+  ing.name = name;
+
+  // Cancel any in-flight request for this slot
+  if (_usdaAbort[ingIdx]) { _usdaAbort[ingIdx].abort(); }
+  const ctrl = new AbortController();
+  _usdaAbort[ingIdx] = ctrl;
+
   state.builder.usdaLoading[ingIdx] = true;
-  document.getElementById('rb-ingredients').innerHTML =
-    state.builder.ingredients.map((ing, idx) => renderBuilderIngredient(ing, idx)).join('');
+  state.builder.usdaShowing[ingIdx] = 8;
+  state.builder.usdaResults[ingIdx] = [];
+  refreshBuilderIngredients();
+
   try {
-    const q = encodeURIComponent(ing.name.trim());
+    const query = name + (state.builder.usdaCookedSearch ? ' cooked' : '');
     const res = await fetch(
-      `https://api.nal.usda.gov/fdc/v1/foods/search?query=${q}&api_key=DEMO_KEY&pageSize=5&dataType=Foundation,SR%20Legacy`
+      `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&api_key=024iQJ3QDcOfJEgW0h0Kd6rzrTJvqvrybwnchRbm&pageSize=20&dataType=Foundation,SR%20Legacy,Survey%20%28FNDDS%29`,
+      { signal: ctrl.signal }
     );
     const data = await res.json();
     const get = (f, id) => (f.foodNutrients || []).find(n => n.nutrientId === id)?.value || 0;
-    state.builder.usdaResults[ingIdx] = (data.foods || []).slice(0, 5).map(f => ({
+    let results = (data.foods || []).map(f => ({
       description: f.description,
       cal:     Math.round(get(f, 1008)),
       protein: Math.round(get(f, 1003) * 10) / 10,
       carbs:   Math.round(get(f, 1005) * 10) / 10,
       fat:     Math.round(get(f, 1004) * 10) / 10,
     }));
-  } catch (_) {
+    results.sort((a, b) => (/cooked/i.test(a.description) ? 0 : 1) - (/cooked/i.test(b.description) ? 0 : 1));
+    state.builder.usdaResults[ingIdx] = results;
+    delete _usdaAbort[ingIdx];
+  } catch (e) {
+    if (e.name === 'AbortError') return;
     state.builder.usdaResults[ingIdx] = [];
   }
   state.builder.usdaLoading[ingIdx] = false;
-  document.getElementById('rb-ingredients').innerHTML =
-    state.builder.ingredients.map((ing, idx) => renderBuilderIngredient(ing, idx)).join('');
+  refreshBuilderIngredients();
+}
+
+function showMoreUSDA(ingIdx) {
+  if (!state.builder) return;
+  state.builder.usdaShowing[ingIdx] = (state.builder.usdaShowing[ingIdx] || 8) + 8;
+  refreshBuilderIngredients();
 }
 
 function applyUSDAResult(ingIdx, description, cal, protein, carbs, fat) {
   if (!state.builder) return;
-  state.builder.ingredients[ingIdx].name = description;
-  state.builder.usdaResults[ingIdx] = [];
   const ing = state.builder.ingredients[ingIdx];
-  const UNIT_G = { g: 1, grams: 1, oz: 28.35, lbs: 453.59, lb: 453.59, cups: 240, cup: 240, tbsp: 15, tsp: 5 };
-  const grams = (UNIT_G[(ing.unit || '').toLowerCase()] || 0) * (+ing.amount || 0);
-  if (grams > 0) {
-    const servings = state.builder.servings || 1;
-    const f = grams / 100 / servings;
-    const add = { cal: Math.round(cal * f), protein: Math.round(protein * f), carbs: Math.round(carbs * f), fat: Math.round(fat * f) };
-    if (confirm(`Add ${add.cal} cal, ${add.protein}g protein, ${add.carbs}g carbs, ${add.fat}g fat per serving to this recipe's totals?`)) {
-      state.builder.calories += add.cal;
-      state.builder.protein  += add.protein;
-      state.builder.carbs    += add.carbs;
-      state.builder.fat      += add.fat;
+  ing.name = description;
+  state.builder.usdaResults[ingIdx] = [];
+  if (state.builder.advancedMode) {
+    ing.cal100g = cal; ing.protein100g = protein;
+    ing.carbs100g = carbs; ing.fat100g = fat;
+    renderRecipeBuilder();
+  } else {
+    const UNIT_G = { g: 1, grams: 1, oz: 28.35, lbs: 453.59, lb: 453.59, cups: 240, cup: 240, tbsp: 15, tsp: 5 };
+    const grams = (UNIT_G[(ing.unit || '').toLowerCase()] || 0) * (+ing.amount || 0);
+    if (grams > 0) {
+      const s = state.builder.servings || 1;
+      const f = grams / 100 / s;
+      const add = {
+        cal:     Math.round(cal * f),
+        protein: Math.round(protein * f * 10) / 10,
+        carbs:   Math.round(carbs * f * 10) / 10,
+        fat:     Math.round(fat * f * 10) / 10,
+      };
+      if (confirm(`Add ${add.cal} cal, ${add.protein}g protein, ${add.carbs}g carbs, ${add.fat}g fat per serving to this recipe's totals?`)) {
+        state.builder.calories += add.cal; state.builder.protein += add.protein;
+        state.builder.carbs    += add.carbs; state.builder.fat   += add.fat;
+      }
     }
+    renderRecipeBuilder();
   }
-  renderRecipeBuilder();
+}
+
+/* ── Barcode scanner ── */
+
+let _barcodeScanner = null;
+
+function openBarcodeScanner(ingIdx) {
+  if (typeof Html5Qrcode === 'undefined') {
+    alert('Barcode scanner not available. Try the USDA search instead.');
+    return;
+  }
+  const overlay = document.getElementById('rb-scanner-overlay');
+  if (!overlay) return;
+  overlay.dataset.ingIdx = String(ingIdx);
+  overlay.classList.add('open');
+  _barcodeScanner = new Html5Qrcode('rb-scanner-region');
+  _barcodeScanner.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: { width: 250, height: 120 } },
+    (barcode) => { closeBarcodeScanner(); lookupBarcode(barcode, ingIdx); },
+    () => {}
+  ).catch(() => {
+    closeBarcodeScanner();
+    alert('Camera not available. Try the USDA search instead.');
+  });
+}
+
+function closeBarcodeScanner() {
+  const overlay = document.getElementById('rb-scanner-overlay');
+  if (overlay) overlay.classList.remove('open');
+  if (_barcodeScanner) {
+    _barcodeScanner.stop().catch(() => {});
+    _barcodeScanner = null;
+  }
+}
+
+async function lookupBarcode(barcode, ingIdx) {
+  if (!state.builder) return;
+  const ing = state.builder.ingredients[ingIdx];
+  if (!ing) return;
+  state.builder.usdaLoading[ingIdx] = true;
+  refreshBuilderIngredients();
+  try {
+    const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${encodeURIComponent(barcode)}.json`);
+    const data = await res.json();
+    if (data.status !== 1 || !data.product) throw new Error('not found');
+    const p = data.product;
+    const n = p.nutriments || {};
+    const kcal100 = n['energy-kcal_100g'] || Math.round((n['energy_100g'] || 0) / 4.184);
+    ing.name        = p.product_name || p.abbreviated_product_name || 'Scanned item';
+    ing.cal100g     = Math.round(kcal100);
+    ing.protein100g = Math.round((n['proteins_100g'] || 0) * 10) / 10;
+    ing.carbs100g   = Math.round((n['carbohydrates_100g'] || 0) * 10) / 10;
+    ing.fat100g     = Math.round((n['fat_100g'] || 0) * 10) / 10;
+    state.builder.usdaLoading[ingIdx] = false;
+    renderRecipeBuilder();
+  } catch (_) {
+    state.builder.usdaLoading[ingIdx] = false;
+    refreshBuilderIngredients();
+    alert('Product not found in database. Try searching by name with USDA instead.');
+  }
 }
 
 /* ============================================================
